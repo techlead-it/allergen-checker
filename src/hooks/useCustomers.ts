@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { customers as initialCustomers } from "../data/mock";
 import type { Customer } from "../data/mock";
+import { migrateCustomer } from "../utils/migration";
 
 const STORAGE_KEY = "customers";
 
@@ -9,7 +10,8 @@ function loadFromStorage(): Customer[] {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return initialCustomers;
     const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : initialCustomers;
+    const items = Array.isArray(parsed) ? parsed : initialCustomers;
+    return items.map(migrateCustomer);
   } catch {
     return initialCustomers;
   }

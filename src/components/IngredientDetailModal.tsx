@@ -1,9 +1,24 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import type { ImportedIngredient, RawMaterial } from "../data/mock";
-import { allergen28Items } from "../data/mock";
 import { Modal } from "./Modal";
 import { StatusBadge } from "./StatusBadge";
-import { AllergenChips } from "./AllergenChips";
+import { TagChip } from "./TagChip";
+import { findTagByName, getTagsByCategory, getAllTagsWithCustom } from "../data/tags";
+import { useCustomTags } from "../hooks/useCustomTags";
+import type { Tag, TagAttachment, TagCategory } from "../data/types";
+
+const allergenTags = [
+  ...getTagsByCategory("allergen_mandatory"),
+  ...getTagsByCategory("allergen_recommended"),
+];
+
+/** 食材特性タグのカテゴリ（非アレルゲン） */
+const propertyTagCategories: { category: TagCategory; label: string }[] = [
+  { category: "taxonomy", label: "食材分類" },
+  { category: "texture", label: "食感" },
+  { category: "odor", label: "匂い" },
+  { category: "risk", label: "リスク" },
+];
 
 type Props = {
   item: ImportedIngredient | null;
@@ -12,19 +27,35 @@ type Props = {
   onUpdate: (updated: ImportedIngredient) => void;
 };
 
-function collectAllergens(materials: RawMaterial[]): string[] {
-  return [...new Set(materials.flatMap((m) => m.allergens))];
+function collectAllergenTags(materials: RawMaterial[]): { tag: Tag; attachment: TagAttachment }[] {
+  const names = [...new Set(materials.flatMap((m) => m.allergens))];
+  const result: { tag: Tag; attachment: TagAttachment }[] = [];
+  for (const name of names) {
+    const tag = findTagByName(name);
+    if (tag) {
+      result.push({
+        tag,
+        attachment: { tagId: tag.id, source: "master", confirmed: true },
+      });
+    }
+  }
+  return result;
 }
 
 export function IngredientDetailModal({ item, open, onClose, onUpdate }: Props) {
+  const { items: customItems } = useCustomTags();
+  const allTagsWithCustom = useMemo(() => getAllTagsWithCustom(customItems), [customItems]);
+
   const [editing, setEditing] = useState(false);
   const [materials, setMaterials] = useState<RawMaterial[]>([]);
+  const [editingTags, setEditingTags] = useState<Set<string>>(new Set());
   const [newName, setNewName] = useState("");
   const [newAllergens, setNewAllergens] = useState<string[]>([]);
 
   function startEdit() {
     if (!item) return;
     setMaterials(item.rawMaterials.map((m) => ({ ...m, allergens: [...m.allergens] })));
+    setEditingTags(new Set((item.tags ?? []).map((t) => t.tagId)));
     setEditing(true);
     setNewName("");
     setNewAllergens([]);
@@ -36,8 +67,25 @@ export function IngredientDetailModal({ item, open, onClose, onUpdate }: Props) 
 
   function saveEdit() {
     if (!item) return;
-    onUpdate({ ...item, rawMaterials: materials });
+    const tags: TagAttachment[] = [...editingTags].map((tagId) => ({
+      tagId,
+      source: "manual" as const,
+      confirmed: true,
+    }));
+    onUpdate({ ...item, rawMaterials: materials, tags });
     setEditing(false);
+  }
+
+  function togglePropertyTag(tagId: string) {
+    setEditingTags((prev) => {
+      const next = new Set(prev);
+      if (next.has(tagId)) {
+        next.delete(tagId);
+      } else {
+        next.add(tagId);
+      }
+      return next;
+    });
   }
 
   function removeMaterial(idx: number) {
@@ -74,7 +122,7 @@ export function IngredientDetailModal({ item, open, onClose, onUpdate }: Props) 
   if (!item) return null;
 
   const displayMaterials = editing ? materials : item.rawMaterials;
-  const allAllergens = collectAllergens(displayMaterials);
+  const allergenChips = collectAllergenTags(displayMaterials);
 
   return (
     <Modal open={open} onClose={onClose} title="食材詳細">
@@ -93,10 +141,60 @@ export function IngredientDetailModal({ item, open, onClose, onUpdate }: Props) 
         </div>
 
         {/* Allergen summary */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <span className="text-xs font-semibold text-text-muted">検出アレルゲン:</span>
-          <AllergenChips allergens={allAllergens} />
+          {allergenChips.length === 0 ? (
+            <span className="text-xs text-text-muted">—</span>
+          ) : (
+            allergenChips.map(({ tag, attachment }) => (
+              <TagChip key={tag.id} tag={tag} attachment={attachment} />
+            ))
+          )}
         </div>
+
+        {/* 食材特性タグ（表示モード） */}
+        {!editing && (item?.tags ?? []).length > 0 && (
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-xs font-semibold text-text-muted">食材特性:</span>
+            {(item?.tags ?? []).map((att) => {
+              const tag = allTagsWithCustom.find((t) => t.id === att.tagId);
+              if (!tag) return null;
+              return <TagChip key={tag.id} tag={tag} attachment={att} />;
+            })}
+          </div>
+        )}
+
+        {/* 食材特性タグ（編集モード） */}
+        {editing && (
+          <div className="space-y-3 p-4 bg-bg-cream/30 rounded-lg border border-border-light">
+            <h4 className="text-xs font-semibold text-text-muted uppercase">食材特性タグ</h4>
+            {propertyTagCategories.map(({ category, label }) => {
+              const tags = allTagsWithCustom.filter((t) => t.category === category);
+              if (tags.length === 0) return null;
+              return (
+                <div key={category} className="space-y-1">
+                  <p className="text-[11px] text-text-muted font-medium">{label}</p>
+                  <div className="flex flex-wrap gap-1">
+                    {tags.map((t) => (
+                      <button
+                        key={t.id}
+                        type="button"
+                        onClick={() => togglePropertyTag(t.id)}
+                        className={`px-1.5 py-0.5 rounded text-[10px] font-medium border cursor-pointer transition-colors ${
+                          editingTags.has(t.id)
+                            ? "bg-primary text-white border-primary"
+                            : "bg-bg-cream text-text-muted border-border-light hover:border-primary/30"
+                        }`}
+                      >
+                        {t.name}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
 
         {/* Raw materials table */}
         <div className="bg-bg-cream/50 rounded-lg border border-border-light overflow-hidden">
@@ -126,23 +224,47 @@ export function IngredientDetailModal({ item, open, onClose, onUpdate }: Props) 
                   <td className="py-2 px-3">
                     {editing ? (
                       <div className="flex flex-wrap gap-1">
-                        {allergen28Items.map((a) => (
+                        {allergenTags.map((t) => (
                           <button
-                            key={a.name}
+                            key={t.id}
                             type="button"
-                            onClick={() => toggleMaterialAllergen(idx, a.name)}
+                            onClick={() => toggleMaterialAllergen(idx, t.name)}
                             className={`px-1.5 py-0.5 rounded text-[10px] font-medium border cursor-pointer transition-colors ${
-                              mat.allergens.includes(a.name)
+                              mat.allergens.includes(t.name)
                                 ? "bg-primary text-white border-primary"
                                 : "bg-bg-cream text-text-muted border-border-light hover:border-primary/30"
                             }`}
                           >
-                            {a.name}
+                            {t.name}
                           </button>
                         ))}
                       </div>
                     ) : (
-                      <AllergenChips allergens={mat.allergens} />
+                      <div className="flex flex-wrap gap-1">
+                        {mat.allergens.length === 0 ? (
+                          <span className="text-xs text-text-muted">—</span>
+                        ) : (
+                          mat.allergens.map((name) => {
+                            const tag = findTagByName(name);
+                            if (!tag)
+                              return (
+                                <span
+                                  key={name}
+                                  className="inline-block px-2 py-0.5 rounded-full text-[11px] font-semibold border bg-bg-cream text-text-secondary border-border"
+                                >
+                                  {name}
+                                </span>
+                              );
+                            return (
+                              <TagChip
+                                key={tag.id}
+                                tag={tag}
+                                attachment={{ tagId: tag.id, source: "master", confirmed: true }}
+                              />
+                            );
+                          })
+                        )}
+                      </div>
                     )}
                   </td>
                   {editing && (
@@ -194,18 +316,18 @@ export function IngredientDetailModal({ item, open, onClose, onUpdate }: Props) 
               </button>
             </div>
             <div className="flex flex-wrap gap-1">
-              {allergen28Items.map((a) => (
+              {allergenTags.map((t) => (
                 <button
-                  key={a.name}
+                  key={t.id}
                   type="button"
-                  onClick={() => toggleNewAllergen(a.name)}
+                  onClick={() => toggleNewAllergen(t.name)}
                   className={`px-1.5 py-0.5 rounded text-[10px] font-medium border cursor-pointer transition-colors ${
-                    newAllergens.includes(a.name)
+                    newAllergens.includes(t.name)
                       ? "bg-primary text-white border-primary"
                       : "bg-bg-cream text-text-muted border-border-light hover:border-primary/30"
                   }`}
                 >
-                  {a.name}
+                  {t.name}
                 </button>
               ))}
             </div>

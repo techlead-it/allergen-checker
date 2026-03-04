@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { recipes as initialRecipes } from "../data/mock";
 import type { Recipe } from "../data/mock";
+import { migrateRecipe } from "../utils/migration";
 
 const STORAGE_KEY = "recipes";
 
@@ -9,7 +10,8 @@ function loadFromStorage(): Recipe[] {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return initialRecipes;
     const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : initialRecipes;
+    const items = Array.isArray(parsed) ? parsed : initialRecipes;
+    return items.map(migrateRecipe);
   } catch {
     return initialRecipes;
   }
