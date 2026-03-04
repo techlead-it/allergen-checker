@@ -109,10 +109,12 @@ const testCookingStateRules: CookingStateRule[] = [
   {
     condition: { cookingState: "raw", requiresTag: "tax.animal_product" },
     derivedTagId: "risk.listeria",
+    description: "生の動物性食品はリステリア菌のリスクがあります",
   },
   {
     condition: { cookingState: "semi_raw", requiresTag: "tax.meat" },
     derivedTagId: "risk.toxoplasma",
+    description: "半生の肉はトキソプラズマのリスクがあります",
   },
 ];
 

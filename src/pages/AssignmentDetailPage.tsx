@@ -20,6 +20,7 @@ import { Modal } from "../components/Modal";
 import type {
   CustomerCourseAssignment,
   CustomerRestriction,
+  CookingState,
   DishCustomization,
   CustomIngredient,
   Ingredient,
@@ -65,6 +66,12 @@ function groupReasonsByCategory(reasons: MatchedReason[]): CategoryGroup[] {
   return groups;
 }
 
+const cookingStateLabels: Record<CookingState, string> = {
+  raw: "生",
+  cooked: "加熱済",
+  semi_raw: "半生",
+};
+
 function MatchedTagBadges({ reasons }: { reasons: MatchedReason[] }) {
   const groups = groupReasonsByCategory(reasons);
   return (
@@ -73,6 +80,19 @@ function MatchedTagBadges({ reasons }: { reasons: MatchedReason[] }) {
         <div key={group.label} className="flex items-center gap-1 flex-wrap">
           <span className="text-[10px] text-text-muted font-medium">{group.label}:</span>
           {group.reasons.map((r) => {
+            // リスクタグで導出文脈がある場合、具体的な理由を表示
+            if (r.category === "risk" && r.derivedFrom) {
+              return (
+                <span
+                  key={r.tagId}
+                  className="px-1.5 py-0.5 bg-ng-bg text-ng border border-ng-border rounded text-[11px] font-semibold"
+                  title={r.derivedFrom.ruleDescription}
+                >
+                  {r.derivedFrom.ingredientName ?? r.derivedFrom.sourceTagName}（
+                  {cookingStateLabels[r.derivedFrom.cookingState]}）
+                </span>
+              );
+            }
             const tag = findTagByName(r.tagName);
             if (tag) {
               return (
@@ -347,6 +367,8 @@ function DishAccordion({
   onInlineIngredientRename,
   allIngredientNames,
   customIngredients,
+  cookingStateOverrides,
+  onCookingStateChange,
   note,
   onNoteChange,
   isRemoved,
@@ -369,6 +391,8 @@ function DishAccordion({
   onInlineIngredientRename: (ingIdx: number, newName: string) => void;
   allIngredientNames: string[];
   customIngredients?: CustomIngredient[];
+  cookingStateOverrides: Record<number, CookingState>;
+  onCookingStateChange: (ingredientId: number, state: CookingState) => void;
   note: string;
   onNoteChange: (note: string) => void;
   isRemoved: boolean;
@@ -460,13 +484,39 @@ function DishAccordion({
             </div>
           )}
 
+          {/* リスク導出理由の詳細表示 */}
+          {matchedReasons.some((r) => r.category === "risk" && r.derivedFrom) && (
+            <div className="px-3 py-2.5 md:px-5 border-b border-border-light bg-ng-bg/30">
+              <div className="text-[11px] font-semibold text-ng mb-1.5">妊婦制限の詳細</div>
+              <ul className="space-y-1">
+                {matchedReasons
+                  .filter((r) => r.category === "risk" && r.derivedFrom)
+                  .map((r, i) => (
+                    <li
+                      key={`${r.tagId}-${i}`}
+                      className="flex items-center gap-1.5 text-xs text-text"
+                    >
+                      <span className="text-ng font-bold">!</span>
+                      <span className="font-medium">
+                        {r.derivedFrom!.ingredientName ?? r.derivedFrom!.sourceTagName}（
+                        {cookingStateLabels[r.derivedFrom!.cookingState]}）
+                      </span>
+                      <span className="text-text-muted">→</span>
+                      <span className="text-text-secondary">{r.derivedFrom!.ruleDescription}</span>
+                    </li>
+                  ))}
+              </ul>
+            </div>
+          )}
+
           {/* 食材テーブル */}
           <>
             {/* Mobile card layout */}
             <div className="md:hidden divide-y divide-border-light">
               {dish.linkedIngredients.map((ing, ingIdx) => {
                 const link = dish.ingredientLinks.find((l) => l.ingredientId === ing.id);
-                const cs = link?.cookingState ?? "cooked";
+                const originalCs = link?.cookingState ?? "cooked";
+                const cs = cookingStateOverrides[ing.id] ?? originalCs;
                 const ingResult = checkIngredientByTags(
                   ing.tags,
                   cs,
@@ -505,7 +555,26 @@ function DishAccordion({
                       {!isExcluded && <StatusBadge value={ingResult.judgment} />}
                       {isExcluded && <span className="text-[11px] text-text-muted">除外</span>}
                     </div>
-                    <div className="text-xs text-text-muted pl-6">{ing.category}</div>
+                    <div className="text-xs text-text-muted pl-6 flex items-center gap-2">
+                      <span>{ing.category}</span>
+                      {!isExcluded && (
+                        <select
+                          value={cs}
+                          onChange={(e) =>
+                            onCookingStateChange(ing.id, e.target.value as CookingState)
+                          }
+                          className={`text-xs px-1.5 py-0.5 border rounded bg-bg-card cursor-pointer ${
+                            cs !== originalCs
+                              ? "border-primary text-primary font-semibold"
+                              : "border-border text-text-secondary"
+                          }`}
+                        >
+                          <option value="raw">生</option>
+                          <option value="semi_raw">半生</option>
+                          <option value="cooked">加熱済</option>
+                        </select>
+                      )}
+                    </div>
                     {!isExcluded && (
                       <div className="space-y-1 pl-6">
                         <div className="text-sm">
@@ -547,6 +616,9 @@ function DishAccordion({
                   <th className="py-2.5 px-5 text-[11px] font-semibold text-text-muted uppercase tracking-wider text-left">
                     カテゴリ
                   </th>
+                  <th className="py-2.5 px-5 text-[11px] font-semibold text-text-muted uppercase tracking-wider text-left w-28">
+                    調理状態
+                  </th>
                   <th className="py-2.5 px-5 text-[11px] font-semibold text-text-muted uppercase tracking-wider text-left">
                     含有アレルゲン
                   </th>
@@ -561,7 +633,8 @@ function DishAccordion({
               <tbody>
                 {dish.linkedIngredients.map((ing, ingIdx) => {
                   const link = dish.ingredientLinks.find((l) => l.ingredientId === ing.id);
-                  const cs = link?.cookingState ?? "cooked";
+                  const originalCs = link?.cookingState ?? "cooked";
+                  const cs = cookingStateOverrides[ing.id] ?? originalCs;
                   const ingResult = checkIngredientByTags(
                     ing.tags,
                     cs,
@@ -598,6 +671,32 @@ function DishAccordion({
                         />
                       </td>
                       <td className="py-2.5 px-5 text-sm text-text-secondary">{ing.category}</td>
+                      <td className="py-2.5 px-5 text-sm">
+                        {isExcluded ? (
+                          <span className="text-text-muted text-xs">—</span>
+                        ) : (
+                          <div className="flex items-center gap-1">
+                            <select
+                              value={cs}
+                              onChange={(e) =>
+                                onCookingStateChange(ing.id, e.target.value as CookingState)
+                              }
+                              className={`text-xs px-1.5 py-1 border rounded-lg bg-bg-card cursor-pointer focus:border-primary/50 outline-none ${
+                                cs !== originalCs
+                                  ? "border-primary text-primary font-semibold"
+                                  : "border-border text-text-secondary"
+                              }`}
+                            >
+                              <option value="raw">生</option>
+                              <option value="semi_raw">半生</option>
+                              <option value="cooked">加熱済</option>
+                            </select>
+                            {cs !== originalCs && (
+                              <span className="text-[10px] text-primary">変更</span>
+                            )}
+                          </div>
+                        )}
+                      </td>
                       <td className="py-2.5 px-5 text-sm">
                         {isExcluded ? (
                           <span className="text-text-muted text-xs">—</span>
@@ -686,8 +785,13 @@ export function AssignmentDetailPage() {
   const dishResults = activeDishes.map(
     ({ recipe, customization, isCustomized, excludedIngredientIds }) => {
       const dishIngredients = buildDishIngredients(recipe);
+      // 調理状態の上書きを適用
+      const overrides = customization?.cookingStateOverrides ?? {};
+      const adjustedIngredients = dishIngredients.map((ing) =>
+        overrides[ing.ingredientId] ? { ...ing, cookingState: overrides[ing.ingredientId] } : ing,
+      );
       const result = checkDishByTags(
-        dishIngredients,
+        adjustedIngredients,
         customerRestrictions,
         allTags,
         cookingStateRules,
@@ -780,7 +884,8 @@ export function AssignmentDetailPage() {
         newCustomizations = newCustomizations.filter(
           (c) =>
             c.action != null ||
-            (c.excludedIngredientIds != null && c.excludedIngredientIds.length > 0),
+            (c.excludedIngredientIds != null && c.excludedIngredientIds.length > 0) ||
+            (c.cookingStateOverrides != null && Object.keys(c.cookingStateOverrides).length > 0),
         );
         return { ...a, customizations: newCustomizations };
       }),
@@ -804,6 +909,21 @@ export function AssignmentDetailPage() {
       current.add(ingredientId);
     }
     updateCustomization(dishId, { excludedIngredientIds: [...current] });
+  }
+
+  function handleCookingStateChange(dishId: number, ingredientId: number, state: CookingState) {
+    const c = customizations.find((c) => c.originalDishId === dishId);
+    const current = { ...c?.cookingStateOverrides };
+    // レシピのデフォルトに戻す場合はエントリを削除
+    const dish = allRecipes.find((r) => r.id === dishId);
+    const link = dish?.ingredientLinks.find((l) => l.ingredientId === ingredientId);
+    const originalState = link?.cookingState ?? "cooked";
+    if (state === originalState) {
+      delete current[ingredientId];
+    } else {
+      current[ingredientId] = state;
+    }
+    updateCustomization(dishId, { cookingStateOverrides: current });
   }
 
   // 除外（1クリック）
@@ -1093,6 +1213,10 @@ export function AssignmentDetailPage() {
                 }
                 allIngredientNames={allIngredientNames}
                 customIngredients={customization?.customIngredients}
+                cookingStateOverrides={customization?.cookingStateOverrides ?? {}}
+                onCookingStateChange={(ingredientId, state) =>
+                  handleCookingStateChange(originalDishId, ingredientId, state)
+                }
                 note={customization?.note ?? ""}
                 onNoteChange={(note) => updateCustomization(originalDishId, { note })}
                 isRemoved={false}

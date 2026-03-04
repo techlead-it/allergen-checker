@@ -141,6 +141,7 @@ export type CookingStateRule = {
     requiresTag?: string;
   };
   derivedTagId: string;
+  description: string;
 };
 
 // ─── 割当・カスタマイズ ───
@@ -158,6 +159,7 @@ export type DishCustomization = {
   replacementDishId?: number;
   customIngredients?: CustomIngredient[];
   excludedIngredientIds?: number[];
+  cookingStateOverrides?: Record<number, CookingState>;
   note: string;
 };
 

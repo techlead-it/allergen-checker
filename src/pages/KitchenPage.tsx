@@ -4,11 +4,24 @@ import { useCustomers } from "../hooks/useCustomers";
 import { useCourses } from "../hooks/useCourses";
 import { useRecipes } from "../hooks/useRecipes";
 import { resolveCustomizedDishes, customizationLabel } from "../utils/resolveCustomizedDishes";
-import { restrictionNames } from "../utils/tagCheck";
-import { allTags, findTagById } from "../data/tags";
+import { restrictionNames, checkDishByTags, buildDishIngredients } from "../utils/tagCheck";
+
+import { allTags, findTagById, cookingStateRules } from "../data/tags";
 import { TagChip } from "../components/TagChip";
 import type { ResolvedDish } from "../utils/resolveCustomizedDishes";
-import type { Recipe, CustomIngredient, Ingredient } from "../data/types";
+import type {
+  Recipe,
+  CustomIngredient,
+  Ingredient,
+  CookingState,
+  CustomerRestriction,
+} from "../data/types";
+
+const cookingStateLabels: Record<CookingState, string> = {
+  raw: "生",
+  cooked: "加熱済",
+  semi_raw: "半生",
+};
 
 function formatDateShort(dateStr: string): string {
   const d = new Date(dateStr);
@@ -161,6 +174,86 @@ function ExclusionDetail({ excludedIngredients }: { excludedIngredients: string[
         <div key={name} className="flex items-center gap-2 text-sm">
           <span className="line-through text-text-muted">{name}</span>
           <span className="text-ng text-xs">除外</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function CookingStateChangeDetail({
+  recipe,
+  cookingStateOverrides,
+}: {
+  recipe: Recipe;
+  cookingStateOverrides: Record<number, CookingState>;
+}) {
+  const changes: { name: string; before: string; after: string }[] = [];
+  for (const [idStr, newState] of Object.entries(cookingStateOverrides)) {
+    const ingId = Number(idStr);
+    const link = recipe.ingredientLinks.find((l) => l.ingredientId === ingId);
+    if (!link || link.cookingState === newState) continue;
+    const ing = recipe.linkedIngredients.find((i) => i.id === ingId);
+    changes.push({
+      name: ing?.name ?? `食材${ingId}`,
+      before: cookingStateLabels[link.cookingState],
+      after: cookingStateLabels[newState],
+    });
+  }
+  if (changes.length === 0) return null;
+  return (
+    <div className="ml-6 mt-2 border-l-4 border-primary bg-primary/5 rounded-r-lg p-3 print:bg-blue-50">
+      <div className="text-xs font-bold text-primary mb-2">調理状態変更</div>
+      {changes.map((c) => (
+        <div key={c.name} className="flex items-center gap-2 text-sm">
+          <span className="font-medium">{c.name}</span>
+          <span className="text-text-muted line-through">{c.before}</span>
+          <span className="text-primary font-bold">→</span>
+          <span className="font-bold text-primary">{c.after}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function RiskReasonDetail({
+  recipe,
+  customerRestrictions,
+  excludedIngredientIds,
+  cookingStateOverrides,
+}: {
+  recipe: Recipe;
+  customerRestrictions: CustomerRestriction[];
+  excludedIngredientIds: number[];
+  cookingStateOverrides: Record<number, CookingState>;
+}) {
+  const dishIngredients = buildDishIngredients(recipe).map((di) => {
+    const override = cookingStateOverrides[di.ingredientId];
+    return override ? { ...di, cookingState: override } : di;
+  });
+  const result = checkDishByTags(
+    dishIngredients,
+    customerRestrictions,
+    allTags,
+    cookingStateRules,
+    excludedIngredientIds,
+  );
+
+  const riskReasons = result.matchedReasons.filter((r) => r.category === "risk" && r.derivedFrom);
+
+  if (riskReasons.length === 0) return null;
+
+  return (
+    <div className="ml-6 mt-2 border-l-4 border-ng bg-ng-bg/40 rounded-r-lg p-3 print:bg-red-50">
+      <div className="text-xs font-bold text-ng mb-2">妊婦制限</div>
+      {riskReasons.map((r) => (
+        <div key={r.tagId} className="flex items-center gap-1.5 text-sm">
+          <span className="text-ng font-bold">!</span>
+          <span className="font-medium">
+            {r.derivedFrom!.ingredientName ?? r.derivedFrom!.sourceTagName}（
+            {cookingStateLabels[r.derivedFrom!.cookingState]}）
+          </span>
+          <span className="text-text-muted">→</span>
+          <span className="text-text-secondary text-xs">{r.derivedFrom!.ruleDescription}</span>
         </div>
       ))}
     </div>
@@ -378,6 +471,20 @@ export function KitchenPage() {
 
                               {/* 食材除外詳細 */}
                               <ExclusionDetail excludedIngredients={excludedIngNames} />
+
+                              {/* 調理状態変更詳細 */}
+                              <CookingStateChangeDetail
+                                recipe={recipe}
+                                cookingStateOverrides={customization?.cookingStateOverrides ?? {}}
+                              />
+
+                              {/* 妊婦制限の具体的理由 */}
+                              <RiskReasonDetail
+                                recipe={recipe}
+                                customerRestrictions={customer.restrictions}
+                                excludedIngredientIds={excludedIngredientIds}
+                                cookingStateOverrides={customization?.cookingStateOverrides ?? {}}
+                              />
 
                               {/* 変更理由（差し替え以外） */}
                               {customization?.note &&

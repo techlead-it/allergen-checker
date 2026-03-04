@@ -21,13 +21,14 @@ export function judgmentIcon(j: Judgment) {
 
 /** Recipe から DishIngredientInput[] を構築するヘルパー */
 export function buildDishIngredients(recipe: {
-  linkedIngredients: { id: number; tags: TagAttachment[] }[];
+  linkedIngredients: { id: number; name: string; tags: TagAttachment[] }[];
   ingredientLinks: { ingredientId: number; cookingState: CookingState }[];
 }): DishIngredientInput[] {
   return recipe.linkedIngredients.map((ing) => {
     const link = recipe.ingredientLinks.find((l) => l.ingredientId === ing.id);
     return {
       ingredientId: ing.id,
+      ingredientName: ing.name,
       tags: ing.tags,
       cookingState: link?.cookingState ?? "cooked",
     };
@@ -50,12 +51,21 @@ export function tagNames(tags: TagAttachment[], allTags: Tag[]): string[] {
   });
 }
 import { getEffectiveTags } from "./tagHierarchy";
-import { getDerivedTagIds } from "./derivedTags";
+import { getDerivedTags, type DerivedTagResult } from "./derivedTags";
+
+export type DerivedFromInfo = {
+  cookingState: CookingState;
+  sourceTagId: string;
+  sourceTagName: string;
+  ruleDescription: string;
+  ingredientName?: string;
+};
 
 export type MatchedReason = {
   tagId: string;
   tagName: string;
   category: TagCategory | undefined;
+  derivedFrom?: DerivedFromInfo;
 };
 
 export type IngredientCheckResult = {
@@ -67,6 +77,7 @@ export type IngredientCheckResult = {
 
 export type DishIngredientInput = {
   ingredientId: number;
+  ingredientName?: string;
   tags: TagAttachment[];
   cookingState: CookingState;
 };
@@ -93,9 +104,16 @@ export function checkIngredientByTags(
   // 1. 食材のタグIDを収集
   const ingredientTagIds = ingredientTags.map((t) => t.tagId);
 
-  // 2. cookingState から導出タグを追加
-  const derivedTagIds = getDerivedTagIds(cookingState, ingredientTagIds, cookingStateRules);
+  // 2. cookingState から導出タグを追加（文脈情報付き）
+  const derivedResults = getDerivedTags(cookingState, ingredientTagIds, cookingStateRules);
+  const derivedTagIds = derivedResults.map((r) => r.tagId);
   ingredientTagIds.push(...derivedTagIds);
+
+  // 導出タグIDから導出文脈へのマップを構築
+  const derivedMap = new Map<string, DerivedTagResult>();
+  for (const result of derivedResults) {
+    derivedMap.set(result.tagId, result);
+  }
 
   // 3. 顧客のNG条件を展開（親タグ → 子タグの展開）
   const expandedRestrictionTagIds = new Set<string>();
@@ -133,11 +151,22 @@ export function checkIngredientByTags(
     matchedTagIds,
     matchedReasons: matchedTagIds.map((id) => {
       const tag = allTags.find((t) => t.id === id);
-      return {
+      const derived = derivedMap.get(id);
+      const reason: MatchedReason = {
         tagId: id,
         tagName: tag?.name ?? id,
         category: tag?.category,
       };
+      if (derived) {
+        const sourceTag = allTags.find((t) => t.id === derived.sourceTagId);
+        reason.derivedFrom = {
+          cookingState: derived.cookingState,
+          sourceTagId: derived.sourceTagId,
+          sourceTagName: sourceTag?.name ?? derived.sourceTagId,
+          ruleDescription: derived.description,
+        };
+      }
+      return reason;
     }),
     derivedTagIds,
   };
@@ -179,7 +208,14 @@ export function checkDishByTags(
       allMatchedTagIds.add(tagId);
     }
     for (const reason of result.matchedReasons) {
-      allMatchedReasons.set(reason.tagId, reason);
+      // 導出リスクタグの場合は食材名を付与し、食材ごとに別エントリにする
+      if (reason.derivedFrom) {
+        reason.derivedFrom.ingredientName = ingredient.ingredientName;
+        const key = `${reason.tagId}:${ingredient.ingredientId}`;
+        allMatchedReasons.set(key, reason);
+      } else {
+        allMatchedReasons.set(reason.tagId, reason);
+      }
     }
   }
 

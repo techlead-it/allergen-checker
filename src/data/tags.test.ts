@@ -76,6 +76,7 @@ describe("Tag type definitions", () => {
         requiresTag: "tax.animal_product",
       },
       derivedTagId: "risk.listeria",
+      description: "生の動物性食品はリステリア菌のリスクがあります",
     };
 
     expect(rule.condition.cookingState).toBe("raw");

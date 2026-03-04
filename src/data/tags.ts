@@ -343,6 +343,48 @@ const taxonomyTags: Tag[] = [
     synonyms: ["マグロ", "メカジキ"],
     isSystemDefined: true,
   },
+  {
+    id: "tax.natural_cheese",
+    name: "ナチュラルチーズ",
+    category: "taxonomy",
+    displayPriority: "normal",
+    parentTagId: "tax.dairy",
+    synonyms: ["カマンベール", "ブリー", "ゴルゴンゾーラ", "モッツァレラ"],
+    isSystemDefined: true,
+  },
+  {
+    id: "tax.cured_meat",
+    name: "非加熱食肉製品",
+    category: "taxonomy",
+    displayPriority: "normal",
+    parentTagId: "tax.meat",
+    synonyms: ["生ハム", "サラミ", "パテ", "プロシュート"],
+    isSystemDefined: true,
+  },
+  {
+    id: "tax.smoked_fish",
+    name: "燻製魚",
+    category: "taxonomy",
+    displayPriority: "normal",
+    synonyms: ["スモークサーモン", "冷燻"],
+    isSystemDefined: true,
+  },
+  {
+    id: "tax.caffeine_source",
+    name: "カフェイン含有食品",
+    category: "taxonomy",
+    displayPriority: "normal",
+    synonyms: ["コーヒー", "紅茶", "緑茶", "抹茶", "エナジードリンク"],
+    isSystemDefined: true,
+  },
+  {
+    id: "tax.alcohol",
+    name: "アルコール",
+    category: "taxonomy",
+    displayPriority: "normal",
+    synonyms: ["酒", "ワイン", "日本酒", "ビール", "みりん"],
+    isSystemDefined: true,
+  },
 ];
 
 // ─── 食感タグ（texture） ───
@@ -438,6 +480,22 @@ const riskTags: Tag[] = [
     synonyms: ["水銀リスク"],
     isSystemDefined: true,
   },
+  {
+    id: "risk.caffeine",
+    name: "カフェイン過剰摂取",
+    category: "risk",
+    displayPriority: "critical",
+    synonyms: ["カフェインリスク"],
+    isSystemDefined: true,
+  },
+  {
+    id: "risk.alcohol",
+    name: "アルコール",
+    category: "risk",
+    displayPriority: "critical",
+    synonyms: ["飲酒リスク"],
+    isSystemDefined: true,
+  },
 ];
 
 // ─── 全タグ ───
@@ -456,7 +514,7 @@ export const allTags: Tag[] = [
 export const pregnancyPreset: RestrictionPreset = {
   id: "pregnancy",
   name: "妊婦",
-  tagIds: ["risk.listeria", "risk.toxoplasma", "risk.mercury"],
+  tagIds: ["risk.listeria", "risk.toxoplasma", "risk.mercury", "risk.caffeine", "risk.alcohol"],
   isEditable: true,
 };
 
@@ -465,26 +523,80 @@ export const allPresets: RestrictionPreset[] = [pregnancyPreset];
 // ─── 調理状態ルール ───
 
 export const cookingStateRules: CookingStateRule[] = [
+  // リステリア菌リスク
   {
     condition: { cookingState: "raw", requiresTag: "tax.animal_product" },
     derivedTagId: "risk.listeria",
+    description: "生の動物性食品はリステリア菌のリスクがあります",
   },
+  {
+    condition: { cookingState: "raw", requiresTag: "tax.natural_cheese" },
+    derivedTagId: "risk.listeria",
+    description: "ナチュラルチーズはリステリア菌に汚染されている可能性があります",
+  },
+  {
+    condition: { cookingState: "raw", requiresTag: "tax.cured_meat" },
+    derivedTagId: "risk.listeria",
+    description: "非加熱食肉製品はリステリア菌のリスクがあります",
+  },
+  {
+    condition: { cookingState: "raw", requiresTag: "tax.smoked_fish" },
+    derivedTagId: "risk.listeria",
+    description: "冷燻製の魚はリステリア菌のリスクがあります",
+  },
+  // トキソプラズマリスク
   {
     condition: { cookingState: "semi_raw", requiresTag: "tax.meat" },
     derivedTagId: "risk.toxoplasma",
+    description: "半生の肉はトキソプラズマのリスクがあります",
   },
-  // 水銀は加熱で除去不可 → 全調理状態で risk.mercury を導出
+  // 水銀リスク（加熱で除去不可 → 全調理状態）
   {
     condition: { cookingState: "raw", requiresTag: "tax.high_mercury_fish" },
     derivedTagId: "risk.mercury",
+    description: "高水銀魚は胎児の発達に影響する可能性があります",
   },
   {
     condition: { cookingState: "cooked", requiresTag: "tax.high_mercury_fish" },
     derivedTagId: "risk.mercury",
+    description: "高水銀魚は加熱しても水銀は除去できません",
   },
   {
     condition: { cookingState: "semi_raw", requiresTag: "tax.high_mercury_fish" },
     derivedTagId: "risk.mercury",
+    description: "高水銀魚は胎児の発達に影響する可能性があります",
+  },
+  // カフェインリスク（調理状態に関係なく全状態）
+  {
+    condition: { cookingState: "raw", requiresTag: "tax.caffeine_source" },
+    derivedTagId: "risk.caffeine",
+    description: "カフェインは胎盤を通過し胎児の発育に影響する可能性があります",
+  },
+  {
+    condition: { cookingState: "cooked", requiresTag: "tax.caffeine_source" },
+    derivedTagId: "risk.caffeine",
+    description: "カフェインは加熱しても分解されません",
+  },
+  {
+    condition: { cookingState: "semi_raw", requiresTag: "tax.caffeine_source" },
+    derivedTagId: "risk.caffeine",
+    description: "カフェインは胎盤を通過し胎児の発育に影響する可能性があります",
+  },
+  // アルコールリスク（調理状態に関係なく全状態）
+  {
+    condition: { cookingState: "raw", requiresTag: "tax.alcohol" },
+    derivedTagId: "risk.alcohol",
+    description: "アルコールは胎児性アルコール症候群のリスクがあります",
+  },
+  {
+    condition: { cookingState: "cooked", requiresTag: "tax.alcohol" },
+    derivedTagId: "risk.alcohol",
+    description: "アルコールは加熱で完全には除去できません",
+  },
+  {
+    condition: { cookingState: "semi_raw", requiresTag: "tax.alcohol" },
+    derivedTagId: "risk.alcohol",
+    description: "アルコールは胎児性アルコール症候群のリスクがあります",
   },
 ];
 
