@@ -39,14 +39,14 @@ export type ImportedIngredient = {
   name: string;
   rawMaterials: RawMaterial[];
   status: NormStatus;
+  tags?: TagAttachment[];
 };
 
 export type Ingredient = {
   id: number;
   name: string;
   category: IngredientCategory;
-  allergens: string[];
-  allergenUnknown?: boolean;
+  tags: TagAttachment[];
 };
 
 export type Recipe = {
@@ -54,18 +54,20 @@ export type Recipe = {
   name: string;
   version: string;
   linkedIngredients: Ingredient[];
+  ingredientLinks: RecipeIngredientLink[];
 };
 
 export type Customer = {
   id: number;
   name: string;
-  allergens: string[];
   condition: string;
   contamination: string;
   checkInDate: string;
   roomName: string;
   notes: string;
   originalText: string;
+  restrictions: CustomerRestriction[];
+  presets: string[];
 };
 
 export type Course = {
@@ -74,13 +76,71 @@ export type Course = {
   dishIds: number[];
 };
 
-// ─── 特定原材料28品目 ───
+// ─── 統一タグモデル ───
 
-export type AllergenCategory = "義務表示" | "推奨表示" | "カスタム";
+/** タグのカテゴリ */
+export type TagCategory =
+  | "allergen_mandatory" // 特定原材料8品目（法的表示義務）
+  | "allergen_recommended" // 準特定原材料20品目（推奨表示）
+  | "allergen_custom" // 施設独自アレルゲン
+  | "taxonomy" // 食材分類（甲殻類、青魚、ナッツ類）
+  | "texture" // 食感・性質（ネバネバ、ぬるぬる）
+  | "odor" // 匂い（においが強い）
+  | "risk"; // 健康リスク（高水銀、リステリアリスク）
 
-export type AllergenItem = {
+/** タグの表示優先度 */
+export type DisplayPriority = "critical" | "high" | "normal";
+
+/** タグ定義（マスタデータ） */
+export type Tag = {
+  id: string;
   name: string;
-  category: AllergenCategory;
+  category: TagCategory;
+  displayPriority: DisplayPriority;
+  parentTagId?: string;
+  synonyms: string[];
+  isSystemDefined: boolean;
+};
+
+/** 食材に付与されたタグ */
+export type TagAttachment = {
+  tagId: string;
+  source: "ai" | "manual" | "master";
+  confirmed: boolean;
+  evidence?: string;
+};
+
+/** 調理状態 */
+export type CookingState = "raw" | "cooked" | "semi_raw";
+
+/** レシピと食材の紐づけ */
+export type RecipeIngredientLink = {
+  ingredientId: number;
+  cookingState: CookingState;
+};
+
+/** 顧客の制限条件 */
+export type CustomerRestriction = {
+  tagId: string;
+  source: "self_report" | "medical" | "preset";
+  note?: string;
+};
+
+/** プリセット（妊婦、乳幼児等） */
+export type RestrictionPreset = {
+  id: string;
+  name: string;
+  tagIds: string[];
+  isEditable: boolean;
+};
+
+/** 調理状態から導出されるルール */
+export type CookingStateRule = {
+  condition: {
+    cookingState: CookingState;
+    requiresTag?: string;
+  };
+  derivedTagId: string;
 };
 
 // ─── 割当・カスタマイズ ───
