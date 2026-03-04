@@ -1,12 +1,33 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import type { Customer } from "../data/types";
+import type { Customer, CustomerRestriction } from "../data/types";
 import { ROOMS } from "../data/mock";
 import { SearchableSelect } from "../components/SearchableSelect";
-import { AllergenCheckboxGroup } from "../components/AllergenCheckboxGroup";
+import { TagCheckboxGroup } from "../components/TagCheckboxGroup";
+import { TagSummary } from "../components/TagSummary";
 import { useCustomers } from "../hooks/useCustomers";
-import { useCustomAllergens } from "../hooks/useCustomAllergens";
+import { useCustomTags } from "../hooks/useCustomTags";
 import { Modal } from "../components/Modal";
+import { allPresets, getAllTagsWithCustom } from "../data/tags";
+import type { TagCategory } from "../data/types";
+
+function restrictionChipStyle(category: TagCategory | undefined): string {
+  switch (category) {
+    case "allergen_mandatory":
+      return "bg-ng-bg text-ng border-ng-border";
+    case "allergen_recommended":
+    case "allergen_custom":
+      return "bg-caution-bg text-caution border-caution-border";
+    case "taxonomy":
+    case "texture":
+    case "odor":
+      return "bg-primary/10 text-primary border-primary/30";
+    case "risk":
+      return "bg-ng-bg text-ng border-ng-border";
+    default:
+      return "bg-bg-cream text-text-secondary border-border";
+  }
+}
 
 const CONDITIONS = ["微量NG", "少量可", "条件付き", "不明"] as const;
 const CONTAMINATIONS = ["不可", "要確認", "可"] as const;
@@ -15,7 +36,8 @@ type CustomerForm = {
   name: string;
   roomName: string;
   checkInDate: string;
-  allergens: string[];
+  selectedTagIds: string[];
+  presets: string[];
   condition: string;
   contamination: string;
   notes: string;
@@ -27,7 +49,8 @@ function emptyForm(): CustomerForm {
     name: "",
     roomName: "",
     checkInDate: "",
-    allergens: [],
+    selectedTagIds: [],
+    presets: [],
     condition: "不明",
     contamination: "要確認",
     notes: "",
@@ -36,11 +59,14 @@ function emptyForm(): CustomerForm {
 }
 
 function formFromCustomer(c: Customer): CustomerForm {
+  // self_report + medical の restriction tagIds を取得
+  const selfTagIds = c.restrictions.filter((r) => r.source !== "preset").map((r) => r.tagId);
   return {
     name: c.name,
     roomName: c.roomName,
     checkInDate: c.checkInDate,
-    allergens: [...c.allergens],
+    selectedTagIds: selfTagIds,
+    presets: c.presets,
     condition: c.condition,
     contamination: c.contamination,
     notes: c.notes,
@@ -48,30 +74,66 @@ function formFromCustomer(c: Customer): CustomerForm {
   };
 }
 
+/** フォーム状態 → CustomerRestriction[] に変換 */
+function buildRestrictions(selectedTagIds: string[], presetIds: string[]): CustomerRestriction[] {
+  const restrictions: CustomerRestriction[] = selectedTagIds.map((tagId) => ({
+    tagId,
+    source: "self_report" as const,
+  }));
+
+  // プリセットから追加（重複回避）
+  const selectedSet = new Set(selectedTagIds);
+  for (const presetId of presetIds) {
+    const preset = allPresets.find((p) => p.id === presetId);
+    if (!preset) continue;
+    for (const tagId of preset.tagIds) {
+      if (!selectedSet.has(tagId)) {
+        restrictions.push({ tagId, source: "preset" as const });
+        selectedSet.add(tagId);
+      }
+    }
+  }
+
+  return restrictions;
+}
+
 // ─── Form View ───
 function CustomerFormView({
   form,
   setForm,
-  customAllergens,
   onSave,
   onCancel,
   submitLabel,
 }: {
   form: CustomerForm;
   setForm: React.Dispatch<React.SetStateAction<CustomerForm>>;
-  customAllergens: string[];
   onSave: () => void;
   onCancel: () => void;
   submitLabel: string;
 }) {
-  function toggleAllergen(name: string) {
+  const { items: customItems } = useCustomTags();
+  const allTagsWithCustom = useMemo(() => getAllTagsWithCustom(customItems), [customItems]);
+
+  function toggleTag(tagId: string) {
     setForm((prev) => ({
       ...prev,
-      allergens: prev.allergens.includes(name)
-        ? prev.allergens.filter((a) => a !== name)
-        : [...prev.allergens, name],
+      selectedTagIds: prev.selectedTagIds.includes(tagId)
+        ? prev.selectedTagIds.filter((id) => id !== tagId)
+        : [...prev.selectedTagIds, tagId],
     }));
   }
+
+  function togglePreset(presetId: string) {
+    setForm((prev) => ({
+      ...prev,
+      presets: prev.presets.includes(presetId)
+        ? prev.presets.filter((id) => id !== presetId)
+        : [...prev.presets, presetId],
+    }));
+  }
+
+  // 表示用: 選択中のタグ + プリセットの全restriction
+  const allRestrictions = buildRestrictions(form.selectedTagIds, form.presets);
 
   return (
     <div className="space-y-6">
@@ -115,13 +177,59 @@ function CustomerFormView({
           </div>
         </div>
 
-        {/* Allergens */}
+        {/* プリセット */}
+        {allPresets.length > 0 && (
+          <div>
+            <label className="block text-sm text-text-secondary mb-2">プリセット</label>
+            <div className="flex flex-wrap gap-2">
+              {allPresets.map((preset) => {
+                const isActive = form.presets.includes(preset.id);
+                return (
+                  <button
+                    key={preset.id}
+                    type="button"
+                    onClick={() => togglePreset(preset.id)}
+                    className={`px-3 py-1.5 rounded-lg text-sm font-medium cursor-pointer border transition-colors ${
+                      isActive
+                        ? "bg-primary text-white border-primary"
+                        : "bg-bg-cream border-border text-text-secondary hover:border-primary/30"
+                    }`}
+                  >
+                    {preset.name}
+                    {isActive && " ✓"}
+                  </button>
+                );
+              })}
+            </div>
+            {form.presets.length > 0 && (
+              <div className="mt-2 flex flex-wrap gap-1">
+                {form.presets.flatMap((presetId) => {
+                  const preset = allPresets.find((p) => p.id === presetId);
+                  if (!preset) return [];
+                  return preset.tagIds.map((tagId) => {
+                    const tag = allTagsWithCustom.find((t) => t.id === tagId);
+                    return (
+                      <span
+                        key={`${presetId}-${tagId}`}
+                        className="px-1.5 py-0.5 bg-primary/10 text-primary border border-primary/30 rounded text-[11px] font-semibold"
+                      >
+                        {tag?.name ?? tagId}
+                      </span>
+                    );
+                  });
+                })}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* NG条件（タグ選択） */}
         <div>
-          <label className="block text-sm text-text-secondary mb-2">NGアレルゲン</label>
-          <AllergenCheckboxGroup
-            allergens={form.allergens}
-            customAllergens={customAllergens}
-            onToggle={toggleAllergen}
+          <label className="block text-sm text-text-secondary mb-2">NG条件</label>
+          <TagCheckboxGroup
+            tags={allTagsWithCustom}
+            selectedTagIds={form.selectedTagIds}
+            onToggle={toggleTag}
           />
         </div>
 
@@ -203,6 +311,14 @@ function CustomerFormView({
           />
         </div>
 
+        {/* 選択タグサマリ */}
+        {allRestrictions.length > 0 && (
+          <div>
+            <label className="block text-sm text-text-secondary mb-2">選択タグサマリ</label>
+            <TagSummary restrictions={allRestrictions} allTags={allTagsWithCustom} />
+          </div>
+        )}
+
         {/* Actions */}
         <div className="flex gap-3 pt-2">
           <button
@@ -229,6 +345,8 @@ export function CustomerListPage() {
   const navigate = useNavigate();
   const [customerList, setCustomerList] = useCustomers();
   const [deleteTarget, setDeleteTarget] = useState<Customer | null>(null);
+  const { items: customItems } = useCustomTags();
+  const allTagsWithCustom = useMemo(() => getAllTagsWithCustom(customItems), [customItems]);
 
   function confirmDelete() {
     if (!deleteTarget) return;
@@ -269,14 +387,18 @@ export function CustomerListPage() {
             </div>
             <p className="text-xs text-text-muted mb-2">{customer.checkInDate || "日付未設定"}</p>
             <div className="flex flex-wrap gap-1 mb-2">
-              {customer.allergens.map((a) => (
-                <span
-                  key={a}
-                  className="px-1.5 py-0.5 bg-ng-bg text-ng border border-ng-border rounded text-[11px] font-semibold"
-                >
-                  {a}
-                </span>
-              ))}
+              {customer.restrictions.map((r) => {
+                const tag = allTagsWithCustom.find((t) => t.id === r.tagId);
+                const name = tag?.name ?? r.tagId;
+                return (
+                  <span
+                    key={r.tagId}
+                    className={`px-1.5 py-0.5 border rounded text-[11px] font-semibold ${restrictionChipStyle(tag?.category)}`}
+                  >
+                    {name}
+                  </span>
+                );
+              })}
             </div>
             <div className="flex gap-2 text-[11px] text-text-muted mb-3">
               <span>{customer.condition}</span>
@@ -331,7 +453,6 @@ export function CustomerFormPage() {
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
   const [customerList, setCustomerList] = useCustomers();
-  const { items: customAllergens } = useCustomAllergens();
 
   const isEdit = id !== undefined;
   const editCustomer = isEdit ? customerList.find((c) => c.id === Number(id)) : null;
@@ -347,11 +468,12 @@ export function CustomerFormPage() {
       name: form.name.trim(),
       roomName: form.roomName.trim(),
       checkInDate: form.checkInDate,
-      allergens: form.allergens,
+      restrictions: buildRestrictions(form.selectedTagIds, form.presets),
       condition: form.condition,
       contamination: form.contamination,
       notes: form.notes,
       originalText: form.originalText,
+      presets: form.presets,
     };
     setCustomerList((prev) => [...prev, newCustomer]);
     navigate("/customers");
@@ -367,11 +489,12 @@ export function CustomerFormPage() {
               name: form.name.trim(),
               roomName: form.roomName.trim(),
               checkInDate: form.checkInDate,
-              allergens: form.allergens,
+              restrictions: buildRestrictions(form.selectedTagIds, form.presets),
               condition: form.condition,
               contamination: form.contamination,
               notes: form.notes,
               originalText: form.originalText,
+              presets: form.presets,
             }
           : c,
       ),
@@ -397,7 +520,6 @@ export function CustomerFormPage() {
     <CustomerFormView
       form={form}
       setForm={setForm}
-      customAllergens={customAllergens}
       onSave={isEdit ? saveEdit : saveCreate}
       onCancel={() => navigate("/customers")}
       submitLabel={isEdit ? "保存" : "登録"}

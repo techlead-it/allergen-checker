@@ -1,7 +1,14 @@
 import { useState } from "react";
-import { availableIngredients } from "../data/mock";
 import type { Ingredient, IngredientCategory, Recipe } from "../data/mock";
+import type { CookingState } from "../data/types";
 import { useRecipes } from "../hooks/useRecipes";
+import { useIngredients } from "../hooks/useIngredients";
+
+const cookingStateLabels: Record<CookingState, string> = {
+  raw: "生",
+  cooked: "加熱済",
+  semi_raw: "半生",
+};
 
 const categories: IngredientCategory[] = ["主食材", "調味料", "共通仕込み"];
 
@@ -10,6 +17,7 @@ type View = "list" | "detail" | "create";
 export function RecipeLinkPage() {
   const [view, setView] = useState<View>("list");
   const [recipeList, setRecipeList] = useRecipes();
+  const [availableIngredients] = useIngredients();
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [newName, setNewName] = useState("");
   const [search, setSearch] = useState("");
@@ -32,7 +40,16 @@ export function RecipeLinkPage() {
     if (!selectedId) return;
     setRecipeList((prev) =>
       prev.map((r) =>
-        r.id === selectedId ? { ...r, linkedIngredients: [...r.linkedIngredients, item] } : r,
+        r.id === selectedId
+          ? {
+              ...r,
+              linkedIngredients: [...r.linkedIngredients, item],
+              ingredientLinks: [
+                ...r.ingredientLinks,
+                { ingredientId: item.id, cookingState: "cooked" as const },
+              ],
+            }
+          : r,
       ),
     );
   }
@@ -42,7 +59,27 @@ export function RecipeLinkPage() {
     setRecipeList((prev) =>
       prev.map((r) =>
         r.id === selectedId
-          ? { ...r, linkedIngredients: r.linkedIngredients.filter((i) => i.id !== itemId) }
+          ? {
+              ...r,
+              linkedIngredients: r.linkedIngredients.filter((i) => i.id !== itemId),
+              ingredientLinks: r.ingredientLinks.filter((l) => l.ingredientId !== itemId),
+            }
+          : r,
+      ),
+    );
+  }
+
+  function changeCookingState(itemId: number, state: CookingState) {
+    if (!selectedId) return;
+    setRecipeList((prev) =>
+      prev.map((r) =>
+        r.id === selectedId
+          ? {
+              ...r,
+              ingredientLinks: r.ingredientLinks.map((l) =>
+                l.ingredientId === itemId ? { ...l, cookingState: state } : l,
+              ),
+            }
           : r,
       ),
     );
@@ -55,6 +92,7 @@ export function RecipeLinkPage() {
       name: newName.trim(),
       version: "v2026-02",
       linkedIngredients: [],
+      ingredientLinks: [],
     };
     setRecipeList((prev) => [...prev, newRecipe]);
     setNewName("");
@@ -256,20 +294,41 @@ export function RecipeLinkPage() {
                     {cat}
                   </div>
                   <ul className="divide-y divide-border-light">
-                    {items.map((item) => (
-                      <li
-                        key={item.id}
-                        className="flex items-center justify-between px-4 py-2.5 hover:bg-bg-cream/30 transition-colors"
-                      >
-                        <span className="text-sm">{item.name}</span>
-                        <button
-                          onClick={() => removeIngredient(item.id)}
-                          className="text-xs text-ng/70 hover:text-ng font-medium cursor-pointer"
+                    {items.map((item) => {
+                      const link = selectedRecipe?.ingredientLinks.find(
+                        (l) => l.ingredientId === item.id,
+                      );
+                      const currentState = link?.cookingState ?? "cooked";
+                      return (
+                        <li
+                          key={item.id}
+                          className="flex items-center justify-between px-4 py-2.5 hover:bg-bg-cream/30 transition-colors gap-2"
                         >
-                          × 除外
-                        </button>
-                      </li>
-                    ))}
+                          <span className="text-sm flex-1">{item.name}</span>
+                          <select
+                            value={currentState}
+                            onChange={(e) =>
+                              changeCookingState(item.id, e.target.value as CookingState)
+                            }
+                            className="text-[11px] px-2 py-1 border border-border rounded bg-bg-card text-text-secondary cursor-pointer"
+                          >
+                            {(Object.entries(cookingStateLabels) as [CookingState, string][]).map(
+                              ([value, label]) => (
+                                <option key={value} value={value}>
+                                  {label}
+                                </option>
+                              ),
+                            )}
+                          </select>
+                          <button
+                            onClick={() => removeIngredient(item.id)}
+                            className="text-xs text-ng/70 hover:text-ng font-medium cursor-pointer shrink-0"
+                          >
+                            × 除外
+                          </button>
+                        </li>
+                      );
+                    })}
                   </ul>
                 </div>
               );

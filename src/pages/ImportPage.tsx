@@ -1,9 +1,15 @@
-import { useRef, useState } from "react";
-import { importQueue, importedIngredients } from "../data/mock";
+import { useEffect, useRef, useState } from "react";
+import { importQueue } from "../data/mock";
 import type { ImportQueueItem, FileType, ImportedIngredient, RawMaterial } from "../data/mock";
+import { useImportedIngredients } from "../hooks/useImportedIngredients";
+import { useIngredients } from "../hooks/useIngredients";
 import { StatusBadge } from "../components/StatusBadge";
-import { AllergenChips } from "../components/AllergenChips";
+import { TagChip } from "../components/TagChip";
 import { IngredientDetailModal } from "../components/IngredientDetailModal";
+import { findTagByName, findTagById } from "../data/tags";
+import { generateRandomIngredients } from "../data/ocrSimulation";
+import { convertImportedToIngredient } from "../utils/importToIngredient";
+import type { Tag, TagAttachment } from "../data/types";
 
 const filters = ["すべて", "PDF", "画像", "CSV", "Excel"] as const;
 type Filter = (typeof filters)[number];
@@ -33,9 +39,17 @@ export function ImportPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // 正規化確認
-  const [ingredients, setIngredients] = useState<ImportedIngredient[]>(importedIngredients);
+  const [ingredients, setIngredients] = useImportedIngredients();
+  const [savedIngredients, setSavedIngredients] = useIngredients();
   const [detailItem, setDetailItem] = useState<ImportedIngredient | null>(null);
   const [dbSaved, setDbSaved] = useState(false);
+  const ocrTimers = useRef<ReturnType<typeof setTimeout>[]>([]);
+
+  useEffect(() => {
+    return () => {
+      for (const timer of ocrTimers.current) clearTimeout(timer);
+    };
+  }, []);
 
   const displayed =
     active === "すべて"
@@ -74,6 +88,22 @@ export function ImportPage() {
       status: "OCR中" as const,
     }));
     setQueue((prev) => [...prev, ...newItems]);
+
+    // OCRシミュレーション: 1秒後にランダム食材を生成
+    for (const item of newItems) {
+      const timer = setTimeout(() => {
+        const count = 1 + Math.floor(Math.random() * 3); // 1-3件
+        const generated = generateRandomIngredients(item.fileName, count);
+
+        setQueue((prev) =>
+          prev.map((q) =>
+            q.id === item.id ? { ...q, status: "抽出済み" as const, extractedCount: count } : q,
+          ),
+        );
+        setIngredients((prev) => [...prev, ...generated]);
+      }, 1000);
+      ocrTimers.current.push(timer);
+    }
   }
 
   function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
@@ -92,8 +122,32 @@ export function ImportPage() {
     setQueue((prev) => prev.filter((item) => item.id !== id));
   }
 
-  function collectAllergens(materials: RawMaterial[]): string[] {
-    return [...new Set(materials.flatMap((m) => m.allergens))];
+  function collectTags(
+    materials: RawMaterial[],
+    itemTags?: TagAttachment[],
+  ): { tag: Tag; attachment: TagAttachment }[] {
+    const result: { tag: Tag; attachment: TagAttachment }[] = [];
+    // アレルゲンタグ（原材料由来）
+    const names = [...new Set(materials.flatMap((m) => m.allergens))];
+    for (const name of names) {
+      const tag = findTagByName(name);
+      if (tag) {
+        result.push({
+          tag,
+          attachment: { tagId: tag.id, source: "master", confirmed: true },
+        });
+      }
+    }
+    // 非アレルゲンタグ（食材に直接付与）
+    if (itemTags) {
+      for (const att of itemTags) {
+        const tag = findTagById(att.tagId);
+        if (tag && !result.some((r) => r.tag.id === tag.id)) {
+          result.push({ tag, attachment: att });
+        }
+      }
+    }
+    return result;
   }
 
   function confirmIngredient(id: number) {
@@ -114,6 +168,22 @@ export function ImportPage() {
   }
 
   function saveToDb() {
+    const confirmed = ingredients.filter((i) => i.status === "確定");
+    const existingIds = new Set(savedIngredients.map((i) => i.id));
+    const existingNames = new Set(savedIngredients.map((i) => i.name));
+
+    const newIngredients = confirmed
+      .filter((imp) => !existingNames.has(imp.name))
+      .map((imp) => {
+        const converted = convertImportedToIngredient(imp, existingIds);
+        existingIds.add(converted.id);
+        return converted;
+      });
+
+    if (newIngredients.length > 0) {
+      setSavedIngredients((prev) => [...prev, ...newIngredients]);
+    }
+
     setDbSaved(true);
     setTimeout(() => setDbSaved(false), 3000);
   }
@@ -337,7 +407,7 @@ export function ImportPage() {
           {/* Mobile card layout */}
           <div className="md:hidden divide-y divide-border-light">
             {ingredients.map((row) => {
-              const allergens = collectAllergens(row.rawMaterials);
+              const chips = collectTags(row.rawMaterials, row.tags);
               return (
                 <div
                   key={row.id}
@@ -352,7 +422,15 @@ export function ImportPage() {
                   <div className="text-xs text-text-secondary">
                     {row.rawMaterials.map((m) => m.name).join(", ")}
                   </div>
-                  <AllergenChips allergens={allergens} />
+                  <div className="flex flex-wrap gap-1">
+                    {chips.length === 0 ? (
+                      <span className="text-xs text-text-muted">—</span>
+                    ) : (
+                      chips.map(({ tag, attachment }) => (
+                        <TagChip key={tag.id} tag={tag} attachment={attachment} />
+                      ))
+                    )}
+                  </div>
                   <div className="flex items-center gap-2 pt-1">
                     {row.status === "要確認" ? (
                       <button
@@ -384,21 +462,19 @@ export function ImportPage() {
           <table className="w-full hidden md:table">
             <thead>
               <tr className="border-b border-border bg-bg-cream/40">
-                {["出典ファイル", "仕入れ食材名", "原材料", "アレルゲン", "状態", "操作"].map(
-                  (h) => (
-                    <th
-                      key={h}
-                      className="py-3 px-4 text-[11px] font-semibold text-text-muted uppercase tracking-wider text-left"
-                    >
-                      {h}
-                    </th>
-                  ),
-                )}
+                {["出典ファイル", "仕入れ食材名", "原材料", "タグ", "状態", "操作"].map((h) => (
+                  <th
+                    key={h}
+                    className="py-3 px-4 text-[11px] font-semibold text-text-muted uppercase tracking-wider text-left"
+                  >
+                    {h}
+                  </th>
+                ))}
               </tr>
             </thead>
             <tbody>
               {ingredients.map((row) => {
-                const allergens = collectAllergens(row.rawMaterials);
+                const chips = collectTags(row.rawMaterials, row.tags);
                 const rawNames = row.rawMaterials.map((m) => m.name).join(", ");
                 return (
                   <tr
@@ -414,7 +490,15 @@ export function ImportPage() {
                       </span>
                     </td>
                     <td className="py-3 px-4">
-                      <AllergenChips allergens={allergens} />
+                      <div className="flex flex-wrap gap-1">
+                        {chips.length === 0 ? (
+                          <span className="text-xs text-text-muted">—</span>
+                        ) : (
+                          chips.map(({ tag, attachment }) => (
+                            <TagChip key={tag.id} tag={tag} attachment={attachment} />
+                          ))
+                        )}
+                      </div>
                     </td>
                     <td className="py-3 px-4">
                       <StatusBadge value={row.status} />

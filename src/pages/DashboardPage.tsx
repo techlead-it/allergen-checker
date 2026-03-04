@@ -4,7 +4,8 @@ import { useAssignments } from "../hooks/useAssignments";
 import { useCustomers } from "../hooks/useCustomers";
 import { useCourses } from "../hooks/useCourses";
 import { useRecipes } from "../hooks/useRecipes";
-import { checkDish } from "../utils/allergenCheck";
+import { checkDishByTags, buildDishIngredients } from "../utils/tagCheck";
+import { allTags, cookingStateRules } from "../data/tags";
 import { StatusBadge } from "../components/StatusBadge";
 import { SearchableSelect } from "../components/SearchableSelect";
 import { Modal } from "../components/Modal";
@@ -42,7 +43,13 @@ export function DashboardPage() {
 
     const counts = { OK: 0, NG: 0, 要確認: 0 };
     for (const dish of dishes) {
-      const result = checkDish(dish, customer.allergens);
+      const dishIngredients = buildDishIngredients(dish);
+      const result = checkDishByTags(
+        dishIngredients,
+        customer.restrictions,
+        allTags,
+        cookingStateRules,
+      );
       counts[result.judgment]++;
     }
     return counts;

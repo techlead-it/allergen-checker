@@ -4,6 +4,9 @@ import { useCustomers } from "../hooks/useCustomers";
 import { useCourses } from "../hooks/useCourses";
 import { useRecipes } from "../hooks/useRecipes";
 import { resolveCustomizedDishes, customizationLabel } from "../utils/resolveCustomizedDishes";
+import { restrictionNames } from "../utils/tagCheck";
+import { allTags, findTagById } from "../data/tags";
+import { TagChip } from "../components/TagChip";
 import type { ResolvedDish } from "../utils/resolveCustomizedDishes";
 import type { Recipe, CustomIngredient, Ingredient } from "../data/types";
 
@@ -270,12 +273,25 @@ export function KitchenPage() {
                       </div>
                     </div>
                     <div className="flex flex-wrap gap-1.5">
-                      {customer.allergens.map((a) => (
+                      {customer.restrictions.map((r) => {
+                        const tag = findTagById(r.tagId);
+                        if (!tag) return null;
+                        return (
+                          <span key={tag.id} className="print:hidden">
+                            <TagChip
+                              tag={tag}
+                              attachment={{ tagId: tag.id, source: "master", confirmed: true }}
+                            />
+                          </span>
+                        );
+                      })}
+                      {/* 印刷用テキスト表示 */}
+                      {restrictionNames(customer.restrictions, allTags).map((name) => (
                         <span
-                          key={a}
-                          className="px-2 py-0.5 bg-white/20 text-white border border-white/30 rounded text-xs font-semibold print:bg-ng-bg print:text-ng print:border-ng-border"
+                          key={name}
+                          className="hidden print:inline-block px-2 py-0.5 bg-ng-bg text-ng border border-ng-border rounded text-xs font-semibold"
                         >
-                          {a}
+                          {name}
                         </span>
                       ))}
                     </div>

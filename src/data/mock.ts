@@ -12,8 +12,6 @@ export type {
   Recipe,
   Customer,
   Course,
-  AllergenCategory,
-  AllergenItem,
   RawMaterial,
   ImportedIngredient,
   AssignmentStatus,
@@ -28,44 +26,35 @@ import type {
   Recipe,
   Customer,
   Course,
-  AllergenItem,
   ImportedIngredient,
+  TagAttachment,
+  CustomerRestriction,
 } from "./types";
+import { findTagByName } from "./tags";
 
-// ─── 特定原材料28品目 ───
+/** タグIDからTagAttachmentを生成するヘルパー（モックデータ生成用） */
+export function tagById(tagId: string, confirmed = true): TagAttachment {
+  return { tagId, source: "manual" as const, confirmed };
+}
 
-export const allergen28Items: AllergenItem[] = [
-  // 特定原材料8品目（義務表示）
-  { name: "えび", category: "義務表示" },
-  { name: "かに", category: "義務表示" },
-  { name: "くるみ", category: "義務表示" },
-  { name: "小麦", category: "義務表示" },
-  { name: "そば", category: "義務表示" },
-  { name: "卵", category: "義務表示" },
-  { name: "乳", category: "義務表示" },
-  { name: "落花生", category: "義務表示" },
-  // 特定原材料に準ずるもの20品目（推奨表示）
-  { name: "アーモンド", category: "推奨表示" },
-  { name: "あわび", category: "推奨表示" },
-  { name: "いか", category: "推奨表示" },
-  { name: "いくら", category: "推奨表示" },
-  { name: "オレンジ", category: "推奨表示" },
-  { name: "カシューナッツ", category: "推奨表示" },
-  { name: "キウイフルーツ", category: "推奨表示" },
-  { name: "牛肉", category: "推奨表示" },
-  { name: "ごま", category: "推奨表示" },
-  { name: "さけ", category: "推奨表示" },
-  { name: "さば", category: "推奨表示" },
-  { name: "大豆", category: "推奨表示" },
-  { name: "鶏肉", category: "推奨表示" },
-  { name: "バナナ", category: "推奨表示" },
-  { name: "豚肉", category: "推奨表示" },
-  { name: "まつたけ", category: "推奨表示" },
-  { name: "もも", category: "推奨表示" },
-  { name: "やまいも", category: "推奨表示" },
-  { name: "りんご", category: "推奨表示" },
-  { name: "ゼラチン", category: "推奨表示" },
-];
+/** アレルゲン名からTagAttachmentを生成するヘルパー（モックデータ生成用） */
+export function allergenToTag(name: string, confirmed: boolean): TagAttachment {
+  const tag = findTagByName(name);
+  return {
+    tagId: tag?.id ?? `unknown.${name}`,
+    source: "master" as const,
+    confirmed,
+  };
+}
+
+/** アレルゲン名からCustomerRestrictionを生成するヘルパー（モックデータ生成用） */
+export function allergenToRestriction(name: string): CustomerRestriction {
+  const tag = findTagByName(name);
+  return {
+    tagId: tag?.id ?? `unknown.${name}`,
+    source: "self_report" as const,
+  };
+}
 
 // ─── Mock Data ───
 
@@ -160,6 +149,7 @@ export const importedIngredients: ImportedIngredient[] = [
       { name: "干し椎茸", allergens: [] },
     ],
     status: "確定",
+    tags: [tagById("tex.nebaNeba")],
   },
   {
     id: 6,
@@ -188,6 +178,7 @@ export const importedIngredients: ImportedIngredient[] = [
       { name: "脱脂粉乳", allergens: ["乳"] },
     ],
     status: "要確認",
+    tags: [tagById("odor.strong")],
   },
   {
     id: 8,
@@ -199,94 +190,132 @@ export const importedIngredients: ImportedIngredient[] = [
 ];
 
 export const availableIngredients: Ingredient[] = [
-  { id: 1, name: "銀鱈", category: "主食材", allergens: [] },
-  { id: 2, name: "和牛A5", category: "主食材", allergens: [] },
-  { id: 3, name: "車えび", category: "主食材", allergens: ["えび"] },
-  { id: 4, name: "鯛", category: "主食材", allergens: [] },
-  { id: 5, name: "白味噌", category: "調味料", allergens: ["大豆"] },
-  { id: 6, name: "みりん", category: "調味料", allergens: [] },
-  { id: 7, name: "醤油", category: "調味料", allergens: ["大豆", "小麦"], allergenUnknown: true },
-  { id: 8, name: "料理酒", category: "調味料", allergens: [] },
-  { id: 9, name: "基本出汁", category: "共通仕込み", allergens: [] },
+  {
+    id: 1,
+    name: "銀鱈",
+    category: "主食材",
+    tags: [tagById("tax.animal_product"), tagById("tax.high_mercury_fish")],
+  },
+  {
+    id: 2,
+    name: "和牛A5",
+    category: "主食材",
+    tags: [tagById("tax.meat"), tagById("tax.animal_product")],
+  },
+  {
+    id: 3,
+    name: "車えび",
+    category: "主食材",
+    tags: [allergenToTag("えび", true), tagById("tax.crustacean"), tagById("tex.puriPuri")],
+  },
+  {
+    id: 4,
+    name: "鯛",
+    category: "主食材",
+    tags: [tagById("tax.animal_product"), tagById("odor.fishy")],
+  },
+  {
+    id: 5,
+    name: "白味噌",
+    category: "調味料",
+    tags: [allergenToTag("大豆", true), tagById("odor.strong")],
+  },
+  { id: 6, name: "みりん", category: "調味料", tags: [] },
+  {
+    id: 7,
+    name: "醤油",
+    category: "調味料",
+    tags: [allergenToTag("大豆", false), allergenToTag("小麦", false), tagById("odor.strong")],
+  },
+  { id: 8, name: "料理酒", category: "調味料", tags: [] },
+  {
+    id: 9,
+    name: "基本出汁",
+    category: "共通仕込み",
+    tags: [tagById("tax.animal_product"), tagById("odor.fishy")],
+  },
   {
     id: 10,
     name: "醤油タレ",
     category: "共通仕込み",
-    allergens: ["大豆", "小麦"],
-    allergenUnknown: true,
+    tags: [allergenToTag("大豆", false), allergenToTag("小麦", false), tagById("odor.strong")],
   },
-  { id: 11, name: "天ぷら衣", category: "共通仕込み", allergens: ["卵", "小麦"] },
-  { id: 12, name: "味噌ダレ", category: "共通仕込み", allergens: ["大豆"] },
+  {
+    id: 11,
+    name: "天ぷら衣",
+    category: "共通仕込み",
+    tags: [allergenToTag("卵", true), allergenToTag("小麦", true)],
+  },
+  {
+    id: 12,
+    name: "味噌ダレ",
+    category: "共通仕込み",
+    tags: [allergenToTag("大豆", true), tagById("odor.strong")],
+  },
 ];
 
 // ─── Recipes ───
+
+/** availableIngredients から ID で Ingredient を取得するヘルパー */
+function ing(id: number): Ingredient {
+  const found = availableIngredients.find((i) => i.id === id);
+  if (!found) throw new Error(`Ingredient ${id} not found`);
+  return found;
+}
 
 export const recipes: Recipe[] = [
   {
     id: 1,
     name: "銀鱈の西京焼き",
     version: "v2026-02",
-    linkedIngredients: [
-      { id: 1, name: "銀鱈", category: "主食材", allergens: [] },
-      { id: 5, name: "白味噌", category: "調味料", allergens: ["大豆"] },
-      { id: 6, name: "みりん", category: "調味料", allergens: [] },
-      { id: 9, name: "基本出汁", category: "共通仕込み", allergens: [] },
+    linkedIngredients: [ing(1), ing(5), ing(6), ing(9)],
+    ingredientLinks: [
+      { ingredientId: 1, cookingState: "cooked" },
+      { ingredientId: 5, cookingState: "cooked" },
+      { ingredientId: 6, cookingState: "cooked" },
+      { ingredientId: 9, cookingState: "cooked" },
     ],
   },
   {
     id: 2,
     name: "先付（季節の前菜）",
     version: "v2026-02",
-    linkedIngredients: [
-      { id: 4, name: "鯛", category: "主食材", allergens: [] },
-      {
-        id: 7,
-        name: "醤油",
-        category: "調味料",
-        allergens: ["大豆", "小麦"],
-        allergenUnknown: true,
-      },
-      { id: 9, name: "基本出汁", category: "共通仕込み", allergens: [] },
+    linkedIngredients: [ing(4), ing(7), ing(9)],
+    ingredientLinks: [
+      { ingredientId: 4, cookingState: "raw" },
+      { ingredientId: 7, cookingState: "cooked" },
+      { ingredientId: 9, cookingState: "cooked" },
     ],
   },
   {
     id: 3,
     name: "天ぷら盛り合わせ",
     version: "v2026-01",
-    linkedIngredients: [
-      { id: 3, name: "車えび", category: "主食材", allergens: ["えび"] },
-      { id: 11, name: "天ぷら衣", category: "共通仕込み", allergens: ["卵", "小麦"] },
-      { id: 8, name: "料理酒", category: "調味料", allergens: [] },
+    linkedIngredients: [ing(3), ing(11), ing(8)],
+    ingredientLinks: [
+      { ingredientId: 3, cookingState: "cooked" },
+      { ingredientId: 11, cookingState: "cooked" },
+      { ingredientId: 8, cookingState: "cooked" },
     ],
   },
   {
     id: 4,
     name: "和牛すき焼き",
     version: "v2026-02",
-    linkedIngredients: [
-      { id: 2, name: "和牛A5", category: "主食材", allergens: [] },
-      {
-        id: 7,
-        name: "醤油",
-        category: "調味料",
-        allergens: ["大豆", "小麦"],
-        allergenUnknown: true,
-      },
-      { id: 6, name: "みりん", category: "調味料", allergens: [] },
-      {
-        id: 10,
-        name: "醤油タレ",
-        category: "共通仕込み",
-        allergens: ["大豆", "小麦"],
-        allergenUnknown: true,
-      },
+    linkedIngredients: [ing(2), ing(7), ing(6), ing(10)],
+    ingredientLinks: [
+      { ingredientId: 2, cookingState: "semi_raw" },
+      { ingredientId: 7, cookingState: "cooked" },
+      { ingredientId: 6, cookingState: "cooked" },
+      { ingredientId: 10, cookingState: "cooked" },
     ],
   },
   {
     id: 5,
     name: "抹茶プリン",
     version: "v2026-01",
-    linkedIngredients: [{ id: 12, name: "味噌ダレ", category: "共通仕込み", allergens: ["大豆"] }],
+    linkedIngredients: [ing(12)],
+    ingredientLinks: [{ ingredientId: 12, cookingState: "cooked" }],
   },
 ];
 
@@ -312,35 +341,59 @@ export const customers: Customer[] = [
   {
     id: 1,
     name: "山田 太郎",
-    allergens: ["卵", "えび"],
     condition: "微量NG",
     contamination: "不可",
     checkInDate: "2026-02-07",
     roomName: "スタイリッシュスイート",
     notes: "",
     originalText: "",
+    restrictions: [allergenToRestriction("卵"), allergenToRestriction("えび")],
+    presets: [],
   },
   {
     id: 2,
     name: "佐藤 花子",
-    allergens: ["小麦", "大豆"],
     condition: "少量可",
     contamination: "要確認",
     checkInDate: "2026-02-08",
     roomName: "コンフォートスイート",
     notes: "",
     originalText: "",
+    restrictions: [allergenToRestriction("小麦"), allergenToRestriction("大豆")],
+    presets: [],
   },
   {
     id: 3,
     name: "田中 一郎",
-    allergens: ["乳", "落花生", "くるみ"],
     condition: "微量NG",
     contamination: "不可",
     checkInDate: "2026-02-09",
     roomName: "プレミアムスイート",
     notes: "",
     originalText: "",
+    restrictions: [
+      allergenToRestriction("乳"),
+      allergenToRestriction("落花生"),
+      allergenToRestriction("くるみ"),
+    ],
+    presets: [],
+  },
+  {
+    id: 4,
+    name: "鈴木 美咲",
+    condition: "条件付き",
+    contamination: "要確認",
+    checkInDate: "2026-02-10",
+    roomName: "ラグジュアリーコーナースイート",
+    notes: "妊娠中。ネバネバ系の食感が苦手。",
+    originalText: "妊娠8ヶ月です。ネバネバした食感のものは食べられません。",
+    restrictions: [
+      { tagId: "tex.nebaNeba", source: "self_report" as const },
+      { tagId: "risk.listeria", source: "preset" as const },
+      { tagId: "risk.toxoplasma", source: "preset" as const },
+      { tagId: "risk.mercury", source: "preset" as const },
+    ],
+    presets: ["pregnancy"],
   },
 ];
 

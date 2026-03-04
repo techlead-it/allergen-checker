@@ -4,74 +4,165 @@ import { useAssignments } from "../hooks/useAssignments";
 import { useCustomers } from "../hooks/useCustomers";
 import { useCourses } from "../hooks/useCourses";
 import { useRecipes } from "../hooks/useRecipes";
-import { checkIngredient, checkDish, judgmentIcon } from "../utils/allergenCheck";
+import {
+  checkIngredientByTags,
+  checkDishByTags,
+  judgmentIcon,
+  buildDishIngredients,
+  restrictionNames,
+  tagNames,
+} from "../utils/tagCheck";
+import type { MatchedReason } from "../utils/tagCheck";
+import { allTags, cookingStateRules } from "../data/tags";
 import { resolveCustomizedDishes, customizationLabel } from "../utils/resolveCustomizedDishes";
 import { StatusBadge } from "../components/StatusBadge";
 import { SearchableSelect } from "../components/SearchableSelect";
 import { Modal } from "../components/Modal";
 import type {
   CustomerCourseAssignment,
+  CustomerRestriction,
   DishCustomization,
   CustomIngredient,
   Ingredient,
   Judgment,
   Recipe,
 } from "../data/types";
+import { TagChip } from "../components/TagChip";
+import { findTagByName } from "../data/tags";
 
-function AllergenBadges({ allergens }: { allergens: string[] }) {
+type CategoryGroup = {
+  label: string;
+  reasons: MatchedReason[];
+};
+
+function groupReasonsByCategory(reasons: MatchedReason[]): CategoryGroup[] {
+  const groups: CategoryGroup[] = [];
+  const legal: MatchedReason[] = [];
+  const property: MatchedReason[] = [];
+  const risk: MatchedReason[] = [];
+  const other: MatchedReason[] = [];
+
+  for (const r of reasons) {
+    if (
+      r.category === "allergen_mandatory" ||
+      r.category === "allergen_recommended" ||
+      r.category === "allergen_custom"
+    ) {
+      legal.push(r);
+    } else if (r.category === "taxonomy" || r.category === "texture" || r.category === "odor") {
+      property.push(r);
+    } else if (r.category === "risk") {
+      risk.push(r);
+    } else {
+      other.push(r);
+    }
+  }
+
+  if (legal.length > 0) groups.push({ label: "法的アレルゲン", reasons: legal });
+  if (property.length > 0) groups.push({ label: "特性一致", reasons: property });
+  if (risk.length > 0) groups.push({ label: "妊婦制限", reasons: risk });
+  if (other.length > 0) groups.push({ label: "その他", reasons: other });
+
+  return groups;
+}
+
+function MatchedTagBadges({ reasons }: { reasons: MatchedReason[] }) {
+  const groups = groupReasonsByCategory(reasons);
   return (
-    <div className="flex flex-wrap gap-1">
-      {allergens.map((a) => (
-        <span
-          key={a}
-          className="px-1.5 py-0.5 bg-ng-bg text-ng border border-ng-border rounded text-[11px] font-semibold"
-        >
-          {a}
-        </span>
+    <div className="flex flex-wrap gap-1.5 items-center">
+      {groups.map((group) => (
+        <div key={group.label} className="flex items-center gap-1 flex-wrap">
+          <span className="text-[10px] text-text-muted font-medium">{group.label}:</span>
+          {group.reasons.map((r) => {
+            const tag = findTagByName(r.tagName);
+            if (tag) {
+              return (
+                <TagChip
+                  key={tag.id}
+                  tag={tag}
+                  attachment={{ tagId: tag.id, source: "master", confirmed: true }}
+                  matched
+                />
+              );
+            }
+            return (
+              <span
+                key={r.tagId}
+                className="px-1.5 py-0.5 bg-ng-bg text-ng border border-ng-border rounded text-[11px] font-semibold"
+              >
+                {r.tagName}
+              </span>
+            );
+          })}
+        </div>
       ))}
     </div>
   );
 }
 
-function IngredientAllergenCell({
+function IngredientTagCell({
   ingredient,
-  customerAllergens,
+  customerRestrictions,
+  cookingState,
 }: {
   ingredient: Ingredient;
-  customerAllergens: string[];
+  customerRestrictions: CustomerRestriction[];
+  cookingState: "raw" | "cooked" | "semi_raw";
 }) {
-  const ingResult = checkIngredient(ingredient, customerAllergens);
+  const ingResult = checkIngredientByTags(
+    ingredient.tags,
+    cookingState,
+    customerRestrictions,
+    allTags,
+    cookingStateRules,
+  );
 
-  if (ingredient.allergens.length > 0) {
+  const hasUnconfirmed = ingredient.tags.some((t) => !t.confirmed);
+
+  // 導出タグのうちマッチしたもの（直接タグと重複しないもの）
+  const directTagIds = new Set(ingredient.tags.map((t) => t.tagId));
+  const derivedMatchedTags = ingResult.derivedTagIds.filter(
+    (id) => ingResult.matchedTagIds.includes(id) && !directTagIds.has(id),
+  );
+
+  if (ingredient.tags.length > 0 || derivedMatchedTags.length > 0) {
+    const names = tagNames(ingredient.tags, allTags);
     return (
       <span className="flex flex-wrap gap-1 items-center">
-        {ingredient.allergens.map((a) =>
-          ingResult.matchedAllergens.includes(a) ? (
+        {ingredient.tags.map((t, i) =>
+          ingResult.matchedTagIds.includes(t.tagId) ? (
             <span
-              key={a}
+              key={t.tagId}
               className="px-1.5 py-0.5 bg-ng-bg text-ng border border-ng-border rounded text-[11px] font-semibold"
             >
-              {a}
+              {names[i]}
             </span>
           ) : (
-            <span key={a} className="text-text-secondary text-xs">
-              {a}
+            <span
+              key={t.tagId}
+              className={`text-xs ${t.confirmed ? "text-text-secondary" : "text-caution"}`}
+            >
+              {names[i]}
+              {!t.confirmed && " ?"}
             </span>
           ),
         )}
-        {ingredient.allergenUnknown && (
+        {derivedMatchedTags.map((id) => {
+          const tag = allTags.find((t) => t.id === id);
+          return (
+            <span
+              key={id}
+              className="px-1.5 py-0.5 bg-ng-bg text-ng border border-ng-border rounded text-[11px] font-semibold"
+            >
+              {tag?.name ?? id}
+            </span>
+          );
+        })}
+        {hasUnconfirmed && (
           <span className="px-1.5 py-0.5 bg-caution-bg text-caution border border-caution-border rounded text-[11px] font-semibold">
-            不明
+            未確定
           </span>
         )}
-      </span>
-    );
-  }
-
-  if (ingredient.allergenUnknown) {
-    return (
-      <span className="px-1.5 py-0.5 bg-caution-bg text-caution border border-caution-border rounded text-[11px] font-semibold">
-        不明
       </span>
     );
   }
@@ -214,10 +305,10 @@ function InlineEditableCell({
 function DishAccordion({
   dish,
   judgment,
-  matchedAllergens,
+  matchedReasons,
   isOpen,
   onToggle,
-  customerAllergens,
+  customerRestrictions,
   customizationBadge,
   onRemoveDish,
   onOpenReplaceModal,
@@ -236,10 +327,10 @@ function DishAccordion({
 }: {
   dish: Recipe;
   judgment: Judgment;
-  matchedAllergens: string[];
+  matchedReasons: MatchedReason[];
   isOpen: boolean;
   onToggle: () => void;
-  customerAllergens: string[];
+  customerRestrictions: CustomerRestriction[];
   customizationBadge?: string;
   onRemoveDish: () => void;
   onOpenReplaceModal: () => void;
@@ -281,7 +372,7 @@ function DishAccordion({
               食材除外あり
             </span>
           )}
-          {matchedAllergens.length > 0 && <AllergenBadges allergens={matchedAllergens} />}
+          {matchedReasons.length > 0 && <MatchedTagBadges reasons={matchedReasons} />}
         </div>
         <div className="flex items-center gap-3 shrink-0">
           <StatusBadge value={judgment} />
@@ -348,7 +439,15 @@ function DishAccordion({
             {/* Mobile card layout */}
             <div className="md:hidden divide-y divide-border-light">
               {dish.linkedIngredients.map((ing, ingIdx) => {
-                const ingResult = checkIngredient(ing, customerAllergens);
+                const link = dish.ingredientLinks.find((l) => l.ingredientId === ing.id);
+                const cs = link?.cookingState ?? "cooked";
+                const ingResult = checkIngredientByTags(
+                  ing.tags,
+                  cs,
+                  customerRestrictions,
+                  allTags,
+                  cookingStateRules,
+                );
                 const isExcluded = excludedIngredientIds.has(ing.id);
                 const customIng = customIngredients?.[ingIdx];
                 const ingDisplayName = customIng?.name ?? ing.name;
@@ -383,9 +482,10 @@ function DishAccordion({
                     <div className="text-xs text-text-muted pl-6">{ing.category}</div>
                     {!isExcluded && (
                       <div className="text-sm pl-6">
-                        <IngredientAllergenCell
+                        <IngredientTagCell
                           ingredient={ing}
-                          customerAllergens={customerAllergens}
+                          customerRestrictions={customerRestrictions}
+                          cookingState={cs}
                         />
                       </div>
                     )}
@@ -414,7 +514,15 @@ function DishAccordion({
               </thead>
               <tbody>
                 {dish.linkedIngredients.map((ing, ingIdx) => {
-                  const ingResult = checkIngredient(ing, customerAllergens);
+                  const link = dish.ingredientLinks.find((l) => l.ingredientId === ing.id);
+                  const cs = link?.cookingState ?? "cooked";
+                  const ingResult = checkIngredientByTags(
+                    ing.tags,
+                    cs,
+                    customerRestrictions,
+                    allTags,
+                    cookingStateRules,
+                  );
                   const isExcluded = excludedIngredientIds.has(ing.id);
                   const customIng = customIngredients?.[ingIdx];
                   const ingDisplayName = customIng?.name ?? ing.name;
@@ -448,9 +556,10 @@ function DishAccordion({
                         {isExcluded ? (
                           <span className="text-text-muted text-xs">—</span>
                         ) : (
-                          <IngredientAllergenCell
+                          <IngredientTagCell
                             ingredient={ing}
-                            customerAllergens={customerAllergens}
+                            customerRestrictions={customerRestrictions}
+                            cookingState={cs}
                           />
                         )}
                       </td>
@@ -482,6 +591,7 @@ export function AssignmentDetailPage() {
   const [allRecipes] = useRecipes();
   const [expanded, setExpanded] = useState<Set<number>>(new Set());
   const [editingCourse, setEditingCourse] = useState(false);
+  const [judgmentFilter, setJudgmentFilter] = useState<Judgment | "all" | "legal_only">("all");
 
   // 差し替えモーダル用state
   const [replaceModalDishId, setReplaceModalDishId] = useState<number | null>(null);
@@ -506,7 +616,7 @@ export function AssignmentDetailPage() {
 
   const customer = customers.find((c) => c.id === assignment.customerId);
   const course = courseList.find((c) => c.id === assignment.courseId);
-  const customerAllergens = customer?.allergens ?? [];
+  const customerRestrictions = customer?.restrictions ?? [];
 
   const resolvedDishes = course
     ? resolveCustomizedDishes(course.dishIds, allRecipes, assignment.customizations)
@@ -516,7 +626,14 @@ export function AssignmentDetailPage() {
 
   const dishResults = activeDishes.map(
     ({ recipe, customization, isCustomized, excludedIngredientIds }) => {
-      const result = checkDish(recipe, customerAllergens, excludedIngredientIds);
+      const dishIngredients = buildDishIngredients(recipe);
+      const result = checkDishByTags(
+        dishIngredients,
+        customerRestrictions,
+        allTags,
+        cookingStateRules,
+        excludedIngredientIds,
+      );
       return { recipe, ...result, customization, isCustomized, excludedIngredientIds };
     },
   );
@@ -526,6 +643,24 @@ export function AssignmentDetailPage() {
     要確認: dishResults.filter((r) => r.judgment === "要確認").length,
     OK: dishResults.filter((r) => r.judgment === "OK").length,
   };
+
+  const legalCategories = new Set([
+    "allergen_mandatory",
+    "allergen_recommended",
+    "allergen_custom",
+  ]);
+  const legalOnlyCount = dishResults.filter((r) =>
+    r.matchedReasons.some((mr) => mr.category != null && legalCategories.has(mr.category)),
+  ).length;
+
+  const filteredDishResults =
+    judgmentFilter === "all"
+      ? dishResults
+      : judgmentFilter === "legal_only"
+        ? dishResults.filter((r) =>
+            r.matchedReasons.some((mr) => mr.category != null && legalCategories.has(mr.category)),
+          )
+        : dishResults.filter((r) => r.judgment === judgmentFilter);
 
   // 全レシピからユニーク食材名を収集
   const allIngredientNames = [
@@ -736,14 +871,14 @@ export function AssignmentDetailPage() {
         </div>
 
         <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:gap-3 text-sm">
-          <span className="text-text-muted">アレルゲン:</span>
+          <span className="text-text-muted">制限:</span>
           <div className="flex flex-wrap gap-1.5">
-            {customerAllergens.map((a) => (
+            {restrictionNames(customerRestrictions, allTags).map((name) => (
               <span
-                key={a}
+                key={name}
                 className="px-2 py-0.5 bg-ng-bg text-ng border border-ng-border rounded text-xs font-semibold"
               >
-                {a}
+                {name}
               </span>
             ))}
           </div>
@@ -752,17 +887,54 @@ export function AssignmentDetailPage() {
         </div>
       </div>
 
-      {/* サマリーチップ */}
+      {/* サマリーチップ（クリックでフィルタ） */}
       <div className="flex flex-wrap gap-2 md:gap-3">
-        <div className="flex items-center gap-2 px-4 py-2 rounded-lg bg-ng-bg border border-ng-border text-ng text-sm font-semibold">
-          NG <span className="text-lg">{counts.NG}</span>件
-        </div>
-        <div className="flex items-center gap-2 px-4 py-2 rounded-lg bg-caution-bg border border-caution-border text-caution text-sm font-semibold">
-          要確認 <span className="text-lg">{counts.要確認}</span>件
-        </div>
-        <div className="flex items-center gap-2 px-4 py-2 rounded-lg bg-ok-bg border border-ok-border text-ok text-sm font-semibold">
-          OK <span className="text-lg">{counts.OK}</span>件
-        </div>
+        {(
+          [
+            {
+              key: "all",
+              label: "すべて",
+              count: dishResults.length,
+              style: "bg-bg-cream border-border text-text-secondary",
+            },
+            {
+              key: "NG",
+              label: "NG",
+              count: counts.NG,
+              style: "bg-ng-bg border-ng-border text-ng",
+            },
+            {
+              key: "要確認",
+              label: "要確認",
+              count: counts.要確認,
+              style: "bg-caution-bg border-caution-border text-caution",
+            },
+            {
+              key: "OK",
+              label: "OK",
+              count: counts.OK,
+              style: "bg-ok-bg border-ok-border text-ok",
+            },
+            {
+              key: "legal_only",
+              label: "法的のみ",
+              count: legalOnlyCount,
+              style: "bg-[#fef3c7] border-[#fcd34d] text-[#92400e]",
+            },
+          ] as const
+        ).map(({ key, label, count, style }) => (
+          <button
+            key={key}
+            onClick={() => setJudgmentFilter(key)}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg border text-sm font-semibold cursor-pointer transition-all ${style} ${
+              judgmentFilter === key
+                ? "ring-2 ring-primary/40 shadow-card"
+                : "opacity-70 hover:opacity-100"
+            }`}
+          >
+            {label} <span className="text-lg">{count}</span>件
+          </button>
+        ))}
       </div>
 
       {/* アクションボタン */}
@@ -815,11 +987,11 @@ export function AssignmentDetailPage() {
 
       {/* 料理別アコーディオン */}
       <div className="space-y-3">
-        {dishResults.map(
+        {filteredDishResults.map(
           ({
             recipe,
             judgment,
-            matchedAllergens,
+            matchedReasons,
             isCustomized,
             customization,
             excludedIngredientIds,
@@ -838,10 +1010,10 @@ export function AssignmentDetailPage() {
                 key={`${recipe.id}-${originalDishId}`}
                 dish={ingredientSourceDish}
                 judgment={judgment}
-                matchedAllergens={matchedAllergens}
+                matchedReasons={matchedReasons}
                 isOpen={expanded.has(originalDishId)}
                 onToggle={() => toggle(originalDishId)}
-                customerAllergens={customerAllergens}
+                customerRestrictions={customerRestrictions}
                 customizationBadge={
                   isCustomized && customization?.action
                     ? (customizationLabel(customization.action) ?? undefined)
