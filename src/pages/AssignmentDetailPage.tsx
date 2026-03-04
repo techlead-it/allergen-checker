@@ -10,7 +10,6 @@ import {
   judgmentIcon,
   buildDishIngredients,
   restrictionNames,
-  tagNames,
 } from "../utils/tagCheck";
 import type { MatchedReason } from "../utils/tagCheck";
 import { allTags, cookingStateRules } from "../data/tags";
@@ -100,14 +99,30 @@ function MatchedTagBadges({ reasons }: { reasons: MatchedReason[] }) {
   );
 }
 
+const allergenCategories = new Set([
+  "allergen_mandatory",
+  "allergen_recommended",
+  "allergen_custom",
+]);
+const propertyCategories = new Set(["taxonomy", "texture", "odor", "risk"]);
+
+function isTagInFilter(tagId: string, filter: "allergen" | "property"): boolean {
+  const tag = allTags.find((t) => t.id === tagId);
+  if (!tag) return false;
+  const targetCategories = filter === "allergen" ? allergenCategories : propertyCategories;
+  return targetCategories.has(tag.category);
+}
+
 function IngredientTagCell({
   ingredient,
   customerRestrictions,
   cookingState,
+  tagFilter,
 }: {
   ingredient: Ingredient;
   customerRestrictions: CustomerRestriction[];
   cookingState: "raw" | "cooked" | "semi_raw";
+  tagFilter?: "allergen" | "property";
 }) {
   const ingResult = checkIngredientByTags(
     ingredient.tags,
@@ -125,11 +140,22 @@ function IngredientTagCell({
     (id) => ingResult.matchedTagIds.includes(id) && !directTagIds.has(id),
   );
 
-  if (ingredient.tags.length > 0 || derivedMatchedTags.length > 0) {
-    const names = tagNames(ingredient.tags, allTags);
+  // tagFilterが指定されている場合、対象カテゴリのタグのみ表示
+  const filteredTags = tagFilter
+    ? ingredient.tags.filter((t) => isTagInFilter(t.tagId, tagFilter))
+    : ingredient.tags;
+  const filteredDerivedMatchedTags = tagFilter
+    ? derivedMatchedTags.filter((id) => isTagInFilter(id, tagFilter))
+    : derivedMatchedTags;
+
+  if (filteredTags.length > 0 || filteredDerivedMatchedTags.length > 0) {
+    const names = filteredTags.map((t) => {
+      const tag = allTags.find((at) => at.id === t.tagId);
+      return tag?.name ?? t.tagId;
+    });
     return (
       <span className="flex flex-wrap gap-1 items-center">
-        {ingredient.tags.map((t, i) =>
+        {filteredTags.map((t, i) =>
           ingResult.matchedTagIds.includes(t.tagId) ? (
             <span
               key={t.tagId}
@@ -147,7 +173,7 @@ function IngredientTagCell({
             </span>
           ),
         )}
-        {derivedMatchedTags.map((id) => {
+        {filteredDerivedMatchedTags.map((id) => {
           const tag = allTags.find((t) => t.id === id);
           return (
             <span
@@ -158,7 +184,7 @@ function IngredientTagCell({
             </span>
           );
         })}
-        {hasUnconfirmed && (
+        {!tagFilter && hasUnconfirmed && (
           <span className="px-1.5 py-0.5 bg-caution-bg text-caution border border-caution-border rounded text-[11px] font-semibold">
             未確定
           </span>
@@ -481,12 +507,29 @@ function DishAccordion({
                     </div>
                     <div className="text-xs text-text-muted pl-6">{ing.category}</div>
                     {!isExcluded && (
-                      <div className="text-sm pl-6">
-                        <IngredientTagCell
-                          ingredient={ing}
-                          customerRestrictions={customerRestrictions}
-                          cookingState={cs}
-                        />
+                      <div className="space-y-1 pl-6">
+                        <div className="text-sm">
+                          <span className="text-[10px] text-text-muted font-medium mr-1">
+                            アレルゲン:
+                          </span>
+                          <IngredientTagCell
+                            ingredient={ing}
+                            customerRestrictions={customerRestrictions}
+                            cookingState={cs}
+                            tagFilter="allergen"
+                          />
+                        </div>
+                        <div className="text-sm">
+                          <span className="text-[10px] text-text-muted font-medium mr-1">
+                            特性NG:
+                          </span>
+                          <IngredientTagCell
+                            ingredient={ing}
+                            customerRestrictions={customerRestrictions}
+                            cookingState={cs}
+                            tagFilter="property"
+                          />
+                        </div>
                       </div>
                     )}
                   </div>
@@ -506,6 +549,9 @@ function DishAccordion({
                   </th>
                   <th className="py-2.5 px-5 text-[11px] font-semibold text-text-muted uppercase tracking-wider text-left">
                     含有アレルゲン
+                  </th>
+                  <th className="py-2.5 px-5 text-[11px] font-semibold text-text-muted uppercase tracking-wider text-left">
+                    特性NG
                   </th>
                   <th className="py-2.5 px-5 text-[11px] font-semibold text-text-muted uppercase tracking-wider text-center w-24">
                     判定
@@ -560,6 +606,19 @@ function DishAccordion({
                             ingredient={ing}
                             customerRestrictions={customerRestrictions}
                             cookingState={cs}
+                            tagFilter="allergen"
+                          />
+                        )}
+                      </td>
+                      <td className="py-2.5 px-5 text-sm">
+                        {isExcluded ? (
+                          <span className="text-text-muted text-xs">—</span>
+                        ) : (
+                          <IngredientTagCell
+                            ingredient={ing}
+                            customerRestrictions={customerRestrictions}
+                            cookingState={cs}
+                            tagFilter="property"
                           />
                         )}
                       </td>

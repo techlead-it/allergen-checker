@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import { importQueue } from "../data/mock";
 import type { ImportQueueItem, FileType, ImportedIngredient, RawMaterial } from "../data/mock";
+import { useImportQueue } from "../hooks/useImportQueue";
 import { useImportedIngredients } from "../hooks/useImportedIngredients";
 import { useIngredients } from "../hooks/useIngredients";
 import { StatusBadge } from "../components/StatusBadge";
@@ -34,7 +34,7 @@ let nextId = 200;
 
 export function ImportPage() {
   const [active, setActive] = useState<Filter>("すべて");
-  const [queue, setQueue] = useState<ImportQueueItem[]>(importQueue);
+  const [queue, setQueue] = useImportQueue();
   const [dragging, setDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -113,9 +113,7 @@ export function ImportPage() {
   }
 
   function completeItem(id: number) {
-    setQueue((prev) =>
-      prev.map((item) => (item.id === id ? { ...item, status: "取込完了" as const } : item)),
-    );
+    setQueue((prev) => prev.filter((item) => item.id !== id));
   }
 
   function cancelItem(id: number) {
@@ -183,6 +181,10 @@ export function ImportPage() {
     if (newIngredients.length > 0) {
       setSavedIngredients((prev) => [...prev, ...newIngredients]);
     }
+
+    // DB反映済みの確定食材をインポートリストから除去
+    const confirmedIds = new Set(confirmed.map((i) => i.id));
+    setIngredients((prev) => prev.filter((i) => !confirmedIds.has(i.id)));
 
     setDbSaved(true);
     setTimeout(() => setDbSaved(false), 3000);
@@ -538,7 +540,7 @@ export function ImportPage() {
           <button
             onClick={saveToDb}
             className="px-5 py-2.5 text-sm bg-primary text-white rounded-lg hover:bg-primary-light transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
-            disabled={pendingCount > 0}
+            disabled={ingredients.length === 0 || pendingCount > 0}
           >
             DB反映
           </button>

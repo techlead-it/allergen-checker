@@ -74,13 +74,6 @@ export const importQueue: ImportQueueItem[] = [
     status: "OCR中",
   },
   {
-    id: 103,
-    fileName: "ingredients_2026_02.csv",
-    fileType: "CSV",
-    extractedCount: 42,
-    status: "取込完了",
-  },
-  {
     id: 104,
     fileName: "dashi_components.xlsx",
     fileType: "Excel",
