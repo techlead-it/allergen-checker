@@ -1024,7 +1024,17 @@ export function AssignmentDetailPage() {
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h3 className="font-display text-lg font-medium">
-              {customer?.name ?? "—"} /{" "}
+              {customer ? (
+                <button
+                  onClick={() => navigate(`/customers/edit/${customer.id}`)}
+                  className="text-primary hover:underline cursor-pointer"
+                >
+                  {customer.name}
+                </button>
+              ) : (
+                "—"
+              )}{" "}
+              /{" "}
               {editingCourse ? (
                 <span className="inline-block align-middle w-56">
                   <SearchableSelect

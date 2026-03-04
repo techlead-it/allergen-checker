@@ -31,5 +31,13 @@ export function useIngredients() {
     });
   }
 
-  return [ingredients, setIngredients] as const;
+  function updateIngredient(id: number, updates: Partial<Omit<Ingredient, "id">>) {
+    setIngredients((prev) => prev.map((i) => (i.id === id ? { ...i, ...updates } : i)));
+  }
+
+  function deleteIngredient(id: number) {
+    setIngredients((prev) => prev.filter((i) => i.id !== id));
+  }
+
+  return { ingredients, setIngredients, updateIngredient, deleteIngredient };
 }

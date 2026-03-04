@@ -6,6 +6,8 @@ import { useIngredients } from "../hooks/useIngredients";
 import { StatusBadge } from "../components/StatusBadge";
 import { TagChip } from "../components/TagChip";
 import { IngredientDetailModal } from "../components/IngredientDetailModal";
+import { ManualIngredientModal } from "../components/ManualIngredientModal";
+import { ConfirmModal } from "../components/ConfirmModal";
 import { findTagByName, findTagById } from "../data/tags";
 import { generateRandomIngredients } from "../data/ocrSimulation";
 import { convertImportedToIngredient } from "../utils/importToIngredient";
@@ -40,8 +42,10 @@ export function ImportPage() {
 
   // 正規化確認
   const [ingredients, setIngredients] = useImportedIngredients();
-  const [savedIngredients, setSavedIngredients] = useIngredients();
+  const { ingredients: savedIngredients, setIngredients: setSavedIngredients } = useIngredients();
   const [detailItem, setDetailItem] = useState<ImportedIngredient | null>(null);
+  const [manualModalOpen, setManualModalOpen] = useState(false);
+  const [deleteTargetId, setDeleteTargetId] = useState<number | null>(null);
   const [dbSaved, setDbSaved] = useState(false);
   const ocrTimers = useRef<ReturnType<typeof setTimeout>[]>([]);
 
@@ -158,6 +162,11 @@ export function ImportPage() {
     setIngredients((prev) =>
       prev.map((i) => (i.id === id ? { ...i, status: "要確認" as const } : i)),
     );
+  }
+
+  function deleteIngredient(id: number) {
+    setIngredients((prev) => prev.filter((i) => i.id !== id));
+    setDeleteTargetId(null);
   }
 
   function updateIngredient(updated: ImportedIngredient) {
@@ -386,7 +395,16 @@ export function ImportPage() {
 
       {/* Normalization */}
       <section id="import-normalize-section" className="space-y-6">
-        <h3 className="font-display text-base font-medium text-text-secondary">正規化確認</h3>
+        <div className="flex items-center justify-between">
+          <h3 className="font-display text-base font-medium text-text-secondary">正規化確認</h3>
+          <button
+            type="button"
+            onClick={() => setManualModalOpen(true)}
+            className="px-3 py-1.5 text-sm bg-primary text-white rounded-lg hover:bg-primary-light transition-colors cursor-pointer"
+          >
+            + 手動登録
+          </button>
+        </div>
 
         {/* Summary */}
         {pendingCount > 0 && (
@@ -455,6 +473,15 @@ export function ImportPage() {
                         戻す
                       </button>
                     )}
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setDeleteTargetId(row.id);
+                      }}
+                      className="text-xs font-medium text-ng hover:text-ng/80 cursor-pointer ml-2"
+                    >
+                      削除
+                    </button>
                   </div>
                 </div>
               );
@@ -506,27 +533,38 @@ export function ImportPage() {
                       <StatusBadge value={row.status} />
                     </td>
                     <td className="py-3 px-4">
-                      {row.status === "要確認" ? (
+                      <div className="flex items-center gap-2">
+                        {row.status === "要確認" ? (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              confirmIngredient(row.id);
+                            }}
+                            className="text-xs font-medium text-ok hover:text-ok/80 cursor-pointer"
+                          >
+                            確定 ✓
+                          </button>
+                        ) : (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              revertIngredient(row.id);
+                            }}
+                            className="text-xs font-medium text-text-muted hover:text-text-secondary cursor-pointer"
+                          >
+                            戻す
+                          </button>
+                        )}
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
-                            confirmIngredient(row.id);
+                            setDeleteTargetId(row.id);
                           }}
-                          className="text-xs font-medium text-ok hover:text-ok/80 cursor-pointer"
+                          className="text-xs font-medium text-ng hover:text-ng/80 cursor-pointer ml-2"
                         >
-                          確定 ✓
+                          削除
                         </button>
-                      ) : (
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            revertIngredient(row.id);
-                          }}
-                          className="text-xs font-medium text-text-muted hover:text-text-secondary cursor-pointer"
-                        >
-                          戻す
-                        </button>
-                      )}
+                      </div>
                     </td>
                   </tr>
                 );
@@ -552,6 +590,22 @@ export function ImportPage() {
           open={detailItem !== null}
           onClose={() => setDetailItem(null)}
           onUpdate={updateIngredient}
+        />
+
+        {/* Manual Registration Modal */}
+        <ManualIngredientModal
+          open={manualModalOpen}
+          onClose={() => setManualModalOpen(false)}
+          onSave={(ingredient) => setIngredients((prev) => [...prev, ingredient])}
+        />
+
+        {/* Delete Confirmation Modal */}
+        <ConfirmModal
+          open={deleteTargetId !== null}
+          title="食材を削除"
+          message="この食材を削除しますか？この操作は元に戻せません。"
+          onConfirm={() => deleteTargetId !== null && deleteIngredient(deleteTargetId)}
+          onCancel={() => setDeleteTargetId(null)}
         />
       </section>
     </div>

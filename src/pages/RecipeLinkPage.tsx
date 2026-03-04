@@ -17,7 +17,7 @@ type View = "list" | "detail" | "create";
 export function RecipeLinkPage() {
   const [view, setView] = useState<View>("list");
   const [recipeList, setRecipeList] = useRecipes();
-  const [availableIngredients] = useIngredients();
+  const { ingredients: availableIngredients } = useIngredients();
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [newName, setNewName] = useState("");
   const [search, setSearch] = useState("");

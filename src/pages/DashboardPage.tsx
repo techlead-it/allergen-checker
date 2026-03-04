@@ -201,7 +201,21 @@ export function DashboardPage() {
                       onClick={() => navigate(`/dashboard/${a.id}`)}
                       className="border-t border-border-light hover:bg-bg-cream/30 transition-colors cursor-pointer"
                     >
-                      <td className="py-3 px-4 text-sm font-medium">{customer?.name ?? "—"}</td>
+                      <td className="py-3 px-4 text-sm font-medium">
+                        {customer ? (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              navigate(`/customers/edit/${customer.id}`);
+                            }}
+                            className="text-primary hover:underline cursor-pointer"
+                          >
+                            {customer.name}
+                          </button>
+                        ) : (
+                          "—"
+                        )}
+                      </td>
                       <td className="py-3 px-4 text-sm text-text-secondary">
                         {customer?.roomName ?? "—"}
                       </td>
@@ -246,12 +260,29 @@ export function DashboardPage() {
                 const counts = getCounts(a);
                 return (
                   <div key={a.id} className="px-4 py-3 hover:bg-bg-cream/30 transition-colors">
-                    <button
+                    <div
                       onClick={() => navigate(`/dashboard/${a.id}`)}
                       className="w-full text-left cursor-pointer"
+                      role="button"
+                      tabIndex={0}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") navigate(`/dashboard/${a.id}`);
+                      }}
                     >
                       <div className="flex items-center justify-between mb-1">
-                        <span className="font-medium text-sm">{customer?.name ?? "—"}</span>
+                        {customer ? (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              navigate(`/customers/edit/${customer.id}`);
+                            }}
+                            className="font-medium text-sm text-primary hover:underline cursor-pointer"
+                          >
+                            {customer.name}
+                          </button>
+                        ) : (
+                          <span className="font-medium text-sm">—</span>
+                        )}
                         <StatusBadge value={a.status} />
                       </div>
                       <div className="text-xs text-text-muted mb-2">
@@ -262,7 +293,7 @@ export function DashboardPage() {
                         <span className="text-ng font-semibold">NG {counts.NG}</span>
                         <span className="text-caution font-semibold">? {counts.要確認}</span>
                       </div>
-                    </button>
+                    </div>
                     <div className="flex justify-end mt-1">
                       <button
                         onClick={() => setDeleteTargetId(a.id)}

@@ -8,6 +8,7 @@ import { CustomerListPage, CustomerFormPage } from "./pages/CustomerPage";
 import { DashboardPage } from "./pages/DashboardPage";
 import { AssignmentDetailPage } from "./pages/AssignmentDetailPage";
 import { KitchenPage } from "./pages/KitchenPage";
+import { IngredientMasterPage } from "./pages/IngredientMasterPage";
 import { TourProvider } from "./tour/TourProvider";
 
 export const STEPS = [
@@ -28,6 +29,7 @@ function App() {
             <Route path="/import" element={<ImportPage />} />
             <Route path="/recipe" element={<RecipeLinkPage />} />
             <Route path="/course" element={<CoursePage />} />
+            <Route path="/ingredients" element={<IngredientMasterPage />} />
             <Route path="/allergens" element={<CustomAllergenPage />} />
             <Route path="/customers" element={<CustomerListPage />} />
             <Route path="/customers/new" element={<CustomerFormPage />} />
