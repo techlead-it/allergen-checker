@@ -1033,6 +1033,11 @@ export function AssignmentDetailPage() {
                 </button>
               ) : (
                 "—"
+              )}
+              {customer?.presets?.includes("pregnancy") && (
+                <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-pink-100 text-pink-700 border border-pink-300">
+                  🤰 妊婦
+                </span>
               )}{" "}
               /{" "}
               {editingCourse ? (

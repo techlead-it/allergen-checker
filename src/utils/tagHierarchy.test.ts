@@ -105,9 +105,7 @@ describe("getEffectiveTags", () => {
   it("returns itself and all children for parent with multiple children", () => {
     // tax.dairy → [tax.cheese, tax.natural_cheese]
     const result = getEffectiveTags("tax.dairy", testTags);
-    expect(result.sort()).toEqual(
-      ["tax.dairy", "tax.cheese", "tax.natural_cheese"].sort(),
-    );
+    expect(result.sort()).toEqual(["tax.dairy", "tax.cheese", "tax.natural_cheese"].sort());
   });
 
   it("returns only itself for leaf tag with no children", () => {
