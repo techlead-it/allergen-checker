@@ -75,12 +75,16 @@ describe("Tag master data", () => {
       expect(crab?.parentTagId).toBe("tax.crustacean");
     });
 
-    it("defines oily fish hierarchy", () => {
-      const oilyFish = findTagById("tax.oily_fish");
-      expect(oilyFish).toBeDefined();
+    it("defines fish hierarchy", () => {
+      const fish = findTagById("tax.fish");
+      expect(fish).toBeDefined();
+      expect(fish?.category).toBe("taxonomy");
 
       const mackerel = findTagById("allergen.mackerel");
-      expect(mackerel?.parentTagId).toBe("tax.oily_fish");
+      expect(mackerel?.parentTagId).toBe("tax.fish");
+
+      const salmon = findTagById("allergen.salmon");
+      expect(salmon?.parentTagId).toBe("tax.fish");
     });
 
     it("defines nuts hierarchy", () => {
@@ -104,14 +108,14 @@ describe("Tag master data", () => {
       expect(highMercury?.synonyms).toContain("メカジキ");
     });
 
-    it("defines animal_product and meat taxonomy for cookingState rules", () => {
-      const animalProduct = findTagById("tax.animal_product");
-      expect(animalProduct).toBeDefined();
-      expect(animalProduct?.category).toBe("taxonomy");
-
+    it("defines meat and fish taxonomy for cookingState rules", () => {
       const meat = findTagById("tax.meat");
       expect(meat).toBeDefined();
       expect(meat?.category).toBe("taxonomy");
+
+      const fish = findTagById("tax.fish");
+      expect(fish).toBeDefined();
+      expect(fish?.category).toBe("taxonomy");
     });
 
     it("returns child tags for parent", () => {
@@ -193,11 +197,13 @@ describe("Tag master data", () => {
       }
     });
 
-    it("derives listeria risk from raw animal products", () => {
-      const listeriaRule = cookingStateRules.find((r) => r.derivedTagId === "risk.listeria");
-      expect(listeriaRule).toBeDefined();
-      expect(listeriaRule?.condition.cookingState).toBe("raw");
-      expect(listeriaRule?.condition.requiresTag).toBe("tax.animal_product");
+    it("derives listeria risk from raw meat and fish", () => {
+      const listeriaRules = cookingStateRules.filter(
+        (r) => r.derivedTagId === "risk.listeria" && r.condition.cookingState === "raw",
+      );
+      const requiresTags = listeriaRules.map((r) => r.condition.requiresTag).sort();
+      expect(requiresTags).toContain("tax.meat");
+      expect(requiresTags).toContain("tax.fish");
     });
 
     it("derives toxoplasma risk from semi-raw meat", () => {

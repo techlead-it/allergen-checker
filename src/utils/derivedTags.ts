@@ -10,7 +10,7 @@ export type DerivedTagResult = {
 
 /**
  * 調理状態と食材のタグIDから、導出されるタグIDのリストを返す。
- * 例: raw + animal_product → risk.listeria
+ * 例: raw + fish → risk.listeria
  */
 export function getDerivedTagIds(
   cookingState: CookingState,

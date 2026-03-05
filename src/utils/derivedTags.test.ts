@@ -4,9 +4,9 @@ import { getDerivedTagIds } from "./derivedTags";
 
 const testRules: CookingStateRule[] = [
   {
-    condition: { cookingState: "raw", requiresTag: "tax.animal_product" },
+    condition: { cookingState: "raw", requiresTag: "tax.fish" },
     derivedTagId: "risk.listeria",
-    description: "生の動物性食品はリステリア菌のリスクがあります",
+    description: "生の魚類はリステリア菌のリスクがあります",
   },
   {
     condition: { cookingState: "semi_raw", requiresTag: "tax.meat" },
@@ -16,13 +16,13 @@ const testRules: CookingStateRule[] = [
 ];
 
 describe("getDerivedTagIds", () => {
-  it("derives risk.listeria from raw animal product", () => {
-    const result = getDerivedTagIds("raw", ["tax.animal_product"], testRules);
+  it("derives risk.listeria from raw fish", () => {
+    const result = getDerivedTagIds("raw", ["tax.fish"], testRules);
     expect(result).toEqual(["risk.listeria"]);
   });
 
-  it("derives nothing from cooked animal product", () => {
-    const result = getDerivedTagIds("cooked", ["tax.animal_product"], testRules);
+  it("derives nothing from cooked fish", () => {
+    const result = getDerivedTagIds("cooked", ["tax.fish"], testRules);
     expect(result).toEqual([]);
   });
 

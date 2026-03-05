@@ -73,14 +73,14 @@ describe("Tag type definitions", () => {
     const rule: CookingStateRule = {
       condition: {
         cookingState: "raw",
-        requiresTag: "tax.animal_product",
+        requiresTag: "tax.fish",
       },
       derivedTagId: "risk.listeria",
-      description: "生の動物性食品はリステリア菌のリスクがあります",
+      description: "生の魚類はリステリア菌のリスクがあります",
     };
 
     expect(rule.condition.cookingState).toBe("raw");
-    expect(rule.condition.requiresTag).toBe("tax.animal_product");
+    expect(rule.condition.requiresTag).toBe("tax.fish");
     expect(rule.derivedTagId).toBe("risk.listeria");
   });
 

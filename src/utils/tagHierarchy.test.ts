@@ -30,19 +30,10 @@ const testTags: Tag[] = [
     isSystemDefined: true,
   },
   {
-    id: "tax.animal_product",
-    name: "動物性食品",
-    category: "taxonomy",
-    displayPriority: "normal",
-    synonyms: [],
-    isSystemDefined: true,
-  },
-  {
     id: "tax.meat",
     name: "肉類",
     category: "taxonomy",
-    displayPriority: "normal",
-    parentTagId: "tax.animal_product",
+    displayPriority: "high",
     synonyms: [],
     isSystemDefined: true,
   },
@@ -61,6 +52,32 @@ const testTags: Tag[] = [
     category: "allergen_recommended",
     displayPriority: "high",
     parentTagId: "tax.meat",
+    synonyms: [],
+    isSystemDefined: true,
+  },
+  {
+    id: "tax.dairy",
+    name: "乳製品",
+    category: "taxonomy",
+    displayPriority: "high",
+    synonyms: [],
+    isSystemDefined: true,
+  },
+  {
+    id: "tax.cheese",
+    name: "チーズ",
+    category: "taxonomy",
+    displayPriority: "normal",
+    parentTagId: "tax.dairy",
+    synonyms: [],
+    isSystemDefined: true,
+  },
+  {
+    id: "tax.natural_cheese",
+    name: "ナチュラルチーズ",
+    category: "taxonomy",
+    displayPriority: "normal",
+    parentTagId: "tax.dairy",
     synonyms: [],
     isSystemDefined: true,
   },
@@ -85,11 +102,11 @@ describe("getEffectiveTags", () => {
     expect(result.sort()).toEqual(["tax.crustacean", "allergen.shrimp", "allergen.crab"].sort());
   });
 
-  it("returns itself and all descendants for deep hierarchy (3 levels)", () => {
-    // tax.animal_product → tax.meat → [allergen.beef, allergen.pork]
-    const result = getEffectiveTags("tax.animal_product", testTags);
+  it("returns itself and all children for parent with multiple children", () => {
+    // tax.dairy → [tax.cheese, tax.natural_cheese]
+    const result = getEffectiveTags("tax.dairy", testTags);
     expect(result.sort()).toEqual(
-      ["tax.animal_product", "tax.meat", "allergen.beef", "allergen.pork"].sort(),
+      ["tax.dairy", "tax.cheese", "tax.natural_cheese"].sort(),
     );
   });
 

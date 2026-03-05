@@ -149,6 +149,7 @@ const recommendedAllergenTags: Tag[] = [
     name: "さけ",
     category: "allergen_recommended",
     displayPriority: "high",
+    parentTagId: "tax.fish",
     synonyms: ["サケ", "鮭", "サーモン"],
     isSystemDefined: true,
   },
@@ -157,7 +158,7 @@ const recommendedAllergenTags: Tag[] = [
     name: "さば",
     category: "allergen_recommended",
     displayPriority: "high",
-    parentTagId: "tax.oily_fish",
+    parentTagId: "tax.fish",
     synonyms: ["サバ", "鯖"],
     isSystemDefined: true,
   },
@@ -249,21 +250,12 @@ const recommendedAllergenTags: Tag[] = [
 // ─── 食材分類タグ（taxonomy） ───
 
 const taxonomyTags: Tag[] = [
-  // 親タグ（グループ）
   {
     id: "tax.crustacean",
     name: "甲殻類",
     category: "taxonomy",
     displayPriority: "high",
     synonyms: ["こうかくるい"],
-    isSystemDefined: true,
-  },
-  {
-    id: "tax.oily_fish",
-    name: "青魚",
-    category: "taxonomy",
-    displayPriority: "high",
-    synonyms: ["あおざかな"],
     isSystemDefined: true,
   },
   {
@@ -291,48 +283,28 @@ const taxonomyTags: Tag[] = [
     isSystemDefined: true,
   },
   {
-    id: "tax.animal_product",
-    name: "動物性食品",
-    category: "taxonomy",
-    displayPriority: "normal",
-    synonyms: ["どうぶつせい"],
-    isSystemDefined: true,
-  },
-  {
     id: "tax.meat",
     name: "肉類",
     category: "taxonomy",
-    displayPriority: "normal",
-    parentTagId: "tax.animal_product",
+    displayPriority: "high",
     synonyms: ["にくるい"],
     isSystemDefined: true,
   },
-  // 子タグ（個別食材分類）
   {
-    id: "tax.sardine",
-    name: "いわし",
+    id: "tax.fish",
+    name: "魚類",
     category: "taxonomy",
-    displayPriority: "normal",
-    parentTagId: "tax.oily_fish",
-    synonyms: ["イワシ", "鰯"],
+    displayPriority: "high",
+    synonyms: ["さかな", "魚"],
     isSystemDefined: true,
   },
   {
-    id: "tax.saury",
-    name: "さんま",
+    id: "tax.smoked_fish",
+    name: "燻製魚",
     category: "taxonomy",
     displayPriority: "normal",
-    parentTagId: "tax.oily_fish",
-    synonyms: ["サンマ", "秋刀魚"],
-    isSystemDefined: true,
-  },
-  {
-    id: "tax.cheese",
-    name: "チーズ",
-    category: "taxonomy",
-    displayPriority: "normal",
-    parentTagId: "tax.dairy",
-    synonyms: ["ちーず"],
+    parentTagId: "tax.fish",
+    synonyms: ["スモークサーモン", "冷燻"],
     isSystemDefined: true,
   },
   {
@@ -340,16 +312,8 @@ const taxonomyTags: Tag[] = [
     name: "高水銀魚",
     category: "taxonomy",
     displayPriority: "high",
+    parentTagId: "tax.fish",
     synonyms: ["マグロ", "メカジキ"],
-    isSystemDefined: true,
-  },
-  {
-    id: "tax.natural_cheese",
-    name: "ナチュラルチーズ",
-    category: "taxonomy",
-    displayPriority: "normal",
-    parentTagId: "tax.dairy",
-    synonyms: ["カマンベール", "ブリー", "ゴルゴンゾーラ", "モッツァレラ"],
     isSystemDefined: true,
   },
   {
@@ -362,11 +326,21 @@ const taxonomyTags: Tag[] = [
     isSystemDefined: true,
   },
   {
-    id: "tax.smoked_fish",
-    name: "燻製魚",
+    id: "tax.cheese",
+    name: "チーズ",
     category: "taxonomy",
     displayPriority: "normal",
-    synonyms: ["スモークサーモン", "冷燻"],
+    parentTagId: "tax.dairy",
+    synonyms: ["ちーず"],
+    isSystemDefined: true,
+  },
+  {
+    id: "tax.natural_cheese",
+    name: "ナチュラルチーズ",
+    category: "taxonomy",
+    displayPriority: "normal",
+    parentTagId: "tax.dairy",
+    synonyms: ["カマンベール", "ブリー", "ゴルゴンゾーラ", "モッツァレラ"],
     isSystemDefined: true,
   },
   {
@@ -525,9 +499,14 @@ export const allPresets: RestrictionPreset[] = [pregnancyPreset];
 export const cookingStateRules: CookingStateRule[] = [
   // リステリア菌リスク
   {
-    condition: { cookingState: "raw", requiresTag: "tax.animal_product" },
+    condition: { cookingState: "raw", requiresTag: "tax.meat" },
     derivedTagId: "risk.listeria",
-    description: "生の動物性食品はリステリア菌のリスクがあります",
+    description: "生の肉類はリステリア菌のリスクがあります",
+  },
+  {
+    condition: { cookingState: "raw", requiresTag: "tax.fish" },
+    derivedTagId: "risk.listeria",
+    description: "生の魚類はリステリア菌のリスクがあります",
   },
   {
     condition: { cookingState: "raw", requiresTag: "tax.natural_cheese" },

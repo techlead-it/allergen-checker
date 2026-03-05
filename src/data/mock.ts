@@ -187,13 +187,13 @@ export const availableIngredients: Ingredient[] = [
     id: 1,
     name: "銀鱈",
     category: "主食材",
-    tags: [tagById("tax.animal_product"), tagById("tax.high_mercury_fish")],
+    tags: [tagById("tax.fish"), tagById("tax.high_mercury_fish")],
   },
   {
     id: 2,
     name: "和牛A5",
     category: "主食材",
-    tags: [tagById("tax.meat"), tagById("tax.animal_product")],
+    tags: [tagById("tax.meat")],
   },
   {
     id: 3,
@@ -205,7 +205,7 @@ export const availableIngredients: Ingredient[] = [
     id: 4,
     name: "鯛",
     category: "主食材",
-    tags: [tagById("tax.animal_product"), tagById("odor.fishy")],
+    tags: [tagById("tax.fish"), tagById("odor.fishy")],
   },
   {
     id: 5,
@@ -225,7 +225,7 @@ export const availableIngredients: Ingredient[] = [
     id: 9,
     name: "基本出汁",
     category: "共通仕込み",
-    tags: [tagById("tax.animal_product"), tagById("odor.fishy")],
+    tags: [tagById("tax.fish"), tagById("odor.fishy")],
   },
   {
     id: 10,

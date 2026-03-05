@@ -55,10 +55,10 @@ const testTags: Tag[] = [
     isSystemDefined: true,
   },
   {
-    id: "tax.animal_product",
-    name: "動物性食品",
+    id: "tax.fish",
+    name: "魚類",
     category: "taxonomy",
-    displayPriority: "normal",
+    displayPriority: "high",
     synonyms: [],
     isSystemDefined: true,
   },
@@ -66,8 +66,7 @@ const testTags: Tag[] = [
     id: "tax.meat",
     name: "肉類",
     category: "taxonomy",
-    displayPriority: "normal",
-    parentTagId: "tax.animal_product",
+    displayPriority: "high",
     synonyms: [],
     isSystemDefined: true,
   },
@@ -107,9 +106,9 @@ const testTags: Tag[] = [
 
 const testCookingStateRules: CookingStateRule[] = [
   {
-    condition: { cookingState: "raw", requiresTag: "tax.animal_product" },
+    condition: { cookingState: "raw", requiresTag: "tax.fish" },
     derivedTagId: "risk.listeria",
-    description: "生の動物性食品はリステリア菌のリスクがあります",
+    description: "生の魚類はリステリア菌のリスクがあります",
   },
   {
     condition: { cookingState: "semi_raw", requiresTag: "tax.meat" },
@@ -204,10 +203,10 @@ describe("checkIngredientByTags", () => {
     expect(result.matchedTagIds).toContain("allergen.shrimp");
   });
 
-  it("returns NG when raw animal product triggers listeria risk for pregnant customer", () => {
-    // サーモン(raw, tags=[tax.animal_product]) → risk.listeria導出 → 妊婦NG
+  it("returns NG when raw fish triggers listeria risk for pregnant customer", () => {
+    // サーモン(raw, tags=[tax.fish]) → risk.listeria導出 → 妊婦NG
     const result = check({
-      tags: [{ tagId: "tax.animal_product", source: "master", confirmed: true }],
+      tags: [{ tagId: "tax.fish", source: "master", confirmed: true }],
       cookingState: "raw",
       restrictions: [{ tagId: "risk.listeria", source: "preset" }],
     });
@@ -216,10 +215,10 @@ describe("checkIngredientByTags", () => {
     expect(result.matchedTagIds).toContain("risk.listeria");
   });
 
-  it("returns OK when cooked animal product does not trigger listeria risk", () => {
-    // サーモン(cooked, tags=[tax.animal_product]) → 導出なし → OK
+  it("returns OK when cooked fish does not trigger listeria risk", () => {
+    // サーモン(cooked, tags=[tax.fish]) → 導出なし → OK
     const result = check({
-      tags: [{ tagId: "tax.animal_product", source: "master", confirmed: true }],
+      tags: [{ tagId: "tax.fish", source: "master", confirmed: true }],
       cookingState: "cooked",
       restrictions: [{ tagId: "risk.listeria", source: "preset" }],
     });
@@ -287,7 +286,7 @@ describe("checkIngredientByTags", () => {
 
   it("returns derivedTagIds containing tags derived from cooking state rules", () => {
     const result = check({
-      tags: [{ tagId: "tax.animal_product", source: "master", confirmed: true }],
+      tags: [{ tagId: "tax.fish", source: "master", confirmed: true }],
       cookingState: "raw",
       restrictions: [],
     });
@@ -307,7 +306,7 @@ describe("checkIngredientByTags", () => {
 
   it("includes derived tags in matchedTagIds when they match customer restrictions", () => {
     const result = check({
-      tags: [{ tagId: "tax.animal_product", source: "master", confirmed: true }],
+      tags: [{ tagId: "tax.fish", source: "master", confirmed: true }],
       cookingState: "raw",
       restrictions: [{ tagId: "risk.listeria", source: "preset" }],
     });
