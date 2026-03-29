@@ -201,7 +201,9 @@ describe("Tag master data", () => {
       const listeriaRules = cookingStateRules.filter(
         (r) => r.derivedTagId === "risk.listeria" && r.condition.cookingState === "raw",
       );
-      const requiresTags = listeriaRules.map((r) => r.condition.requiresTag).sort();
+      const requiresTags = listeriaRules
+        .map((r) => r.condition.requiresTag)
+        .sort((a, b) => (a ?? "").localeCompare(b ?? ""));
       expect(requiresTags).toContain("tax.meat");
       expect(requiresTags).toContain("tax.fish");
     });

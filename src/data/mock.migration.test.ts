@@ -79,7 +79,7 @@ describe("mock data migration: recipes", () => {
     for (const recipe of recipes) {
       const linkedIds = recipe.linkedIngredients.map((i) => i.id);
       const linkIds = (recipe.ingredientLinks ?? []).map((l) => l.ingredientId);
-      expect(linkIds.sort()).toEqual(linkedIds.sort());
+      expect(linkIds.sort((a, b) => a - b)).toEqual(linkedIds.sort((a, b) => a - b));
     }
   });
 
