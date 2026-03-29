@@ -190,8 +190,20 @@ export function Sidebar({ steps }: Props) {
       </nav>
 
       {/* Footer */}
-      <div className="px-6 py-4 border-t border-white/8 text-[10px] text-white/25 tracking-wider">
-        MVP v0.1.0
+      <div className="px-6 py-4 border-t border-white/8 flex items-center justify-between">
+        <span className="text-[10px] text-white/25 tracking-wider">MVP v0.1.0</span>
+        <button
+          onClick={() => {
+            if (window.confirm("保存データをすべて初期化しますか？")) {
+              localStorage.clear();
+              window.location.reload();
+            }
+          }}
+          className="text-[10px] text-white/25 hover:text-red-400 transition-colors cursor-pointer"
+          title="localStorageをクリアして初期データに戻す"
+        >
+          初期化
+        </button>
       </div>
     </aside>
   );

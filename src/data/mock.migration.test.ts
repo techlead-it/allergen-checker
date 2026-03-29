@@ -29,8 +29,8 @@ describe("mock data migration: ingredients", () => {
     }
   });
 
-  it("confirmed tags are present for ingredients like 車えび", () => {
-    const shrimp = availableIngredients.find((i) => i.name === "車えび");
+  it("confirmed tags are present for ingredients like 甘海老", () => {
+    const shrimp = availableIngredients.find((i) => i.name === "甘海老");
     expect(shrimp).toBeDefined();
     const allergenTags = shrimp!.tags.filter((t) => t.tagId.startsWith("allergen."));
     expect(allergenTags.length).toBeGreaterThan(0);
