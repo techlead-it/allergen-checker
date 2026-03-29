@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "vite-plus/test";
 import { availableIngredients, recipes, customers } from "./mock";
 import { findTagByName, allTags } from "./tags";
 

@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "vite-plus/test";
 import type { CookingStateRule } from "../data/types";
 import { getDerivedTagIds } from "./derivedTags";
 
