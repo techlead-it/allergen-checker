@@ -89,7 +89,7 @@ export function DashboardPage() {
     setNewCustomerId(0);
     setNewCourseId(0);
     setNewDate("");
-    navigate(`/dashboard/${newId}`);
+    void navigate(`/dashboard/${newId}`);
   }
 
   function openModal() {
@@ -198,7 +198,7 @@ export function DashboardPage() {
                   return (
                     <tr
                       key={a.id}
-                      onClick={() => navigate(`/dashboard/${a.id}`)}
+                      onClick={() => void navigate(`/dashboard/${a.id}`)}
                       className="border-t border-border-light hover:bg-bg-cream/30 transition-colors cursor-pointer"
                     >
                       <td className="py-3 px-4 text-sm font-medium">
@@ -206,7 +206,7 @@ export function DashboardPage() {
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
-                              navigate(`/customers/edit/${customer.id}`);
+                              void navigate(`/customers/edit/${customer.id}`);
                             }}
                             className="text-primary hover:underline cursor-pointer"
                           >
@@ -261,12 +261,12 @@ export function DashboardPage() {
                 return (
                   <div key={a.id} className="px-4 py-3 hover:bg-bg-cream/30 transition-colors">
                     <div
-                      onClick={() => navigate(`/dashboard/${a.id}`)}
+                      onClick={() => void navigate(`/dashboard/${a.id}`)}
                       className="w-full text-left cursor-pointer"
                       role="button"
                       tabIndex={0}
                       onKeyDown={(e) => {
-                        if (e.key === "Enter" || e.key === " ") navigate(`/dashboard/${a.id}`);
+                        if (e.key === "Enter" || e.key === " ") void navigate(`/dashboard/${a.id}`);
                       }}
                     >
                       <div className="flex items-center justify-between mb-1">
@@ -274,7 +274,7 @@ export function DashboardPage() {
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
-                              navigate(`/customers/edit/${customer.id}`);
+                              void navigate(`/customers/edit/${customer.id}`);
                             }}
                             className="font-medium text-sm text-primary hover:underline cursor-pointer"
                           >

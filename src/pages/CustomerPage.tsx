@@ -476,7 +476,7 @@ export function CustomerFormPage() {
       presets: form.presets,
     };
     setCustomerList((prev) => [...prev, newCustomer]);
-    navigate("/customers");
+    void navigate("/customers");
   }
 
   function saveEdit() {
@@ -499,7 +499,7 @@ export function CustomerFormPage() {
           : c,
       ),
     );
-    navigate("/customers");
+    void navigate("/customers");
   }
 
   if (isEdit && !editCustomer) {

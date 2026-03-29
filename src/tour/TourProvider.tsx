@@ -69,7 +69,7 @@ export function TourProvider({ children }: { children: ReactNode }) {
       if (index < 0 || index >= tour.steps.length) return;
       navigatingRef.current = true;
       if (route) {
-        navigate(route);
+        void navigate(route);
         // 遷移後にDOMの準備を待つ
         await new Promise((r) => requestAnimationFrame(r));
       }
@@ -79,7 +79,7 @@ export function TourProvider({ children }: { children: ReactNode }) {
         navigatingRef.current = false;
         const nextIdx = index + 1;
         if (nextIdx < tour.steps.length) {
-          goToStep(tour, nextIdx, tour.steps[nextIdx].nextRoute);
+          void goToStep(tour, nextIdx, tour.steps[nextIdx].nextRoute);
         }
         return;
       }
@@ -95,7 +95,7 @@ export function TourProvider({ children }: { children: ReactNode }) {
 
   const startTour = useCallback(
     (tour: Tour) => {
-      goToStep(tour, 0);
+      void goToStep(tour, 0);
     },
     [goToStep],
   );
@@ -111,7 +111,7 @@ export function TourProvider({ children }: { children: ReactNode }) {
       return;
     }
     const nextRoute = activeTour.steps[stepIndex].nextRoute;
-    goToStep(activeTour, nextIdx, nextRoute);
+    void goToStep(activeTour, nextIdx, nextRoute);
   }, [activeTour, stepIndex, goToStep, markCompleted]);
 
   const prevStep = useCallback(() => {
@@ -119,7 +119,7 @@ export function TourProvider({ children }: { children: ReactNode }) {
     const prevIdx = stepIndex - 1;
     if (prevIdx < 0) return;
     const prevRoute = activeTour.steps[stepIndex].prevRoute;
-    goToStep(activeTour, prevIdx, prevRoute);
+    void goToStep(activeTour, prevIdx, prevRoute);
   }, [activeTour, stepIndex, goToStep]);
 
   const closeTour = useCallback(() => {
